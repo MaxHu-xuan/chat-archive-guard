@@ -316,9 +316,16 @@ def _metadata_checks(root: Path, findings: Counter[Tuple[str, str]]) -> None:
         findings[("README.md", "metadata.python_documentation_mismatch")] += 1
     for phrase, category in (
         ("ChatArchiveGuard（聊天归档守护）", "metadata.bilingual_name_missing"),
-        ("## What problem does it solve? / 它解决什么问题？", "metadata.problem_statement_missing"),
-        ("## How it works / 工作原理", "metadata.architecture_summary_missing"),
-        ("## FAQ / 常见问题", "metadata.faq_missing"),
+        ("## 中文说明", "metadata.chinese_overview_missing"),
+        ("## English overview", "metadata.english_overview_missing"),
+        ("### 它解决什么问题", "metadata.chinese_problem_statement_missing"),
+        ("### What problem does it solve?", "metadata.english_problem_statement_missing"),
+        ("## 中文技术参考", "metadata.chinese_technical_reference_missing"),
+        ("## English technical reference", "metadata.english_technical_reference_missing"),
+        ("### 工作原理", "metadata.chinese_architecture_summary_missing"),
+        ("### How it works", "metadata.english_architecture_summary_missing"),
+        ("### 常见问题", "metadata.chinese_faq_missing"),
+        ("### FAQ", "metadata.english_faq_missing"),
         ("### Platform behavior", "metadata.platform_documentation_missing"),
         ("format.invalid_json", "metadata.verifiable_example_missing"),
     ):
