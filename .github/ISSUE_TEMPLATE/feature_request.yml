@@ -1,0 +1,47 @@
+name: Feature request
+description: Propose a bounded, privacy-preserving improvement
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Proposals must preserve local-only, values-free, read-only, fail-closed
+        behavior. Use synthetic examples only.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the general problem without real archive details.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include limits, failure categories, and platform behavior.
+    validations:
+      required: true
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Affected platforms
+      multiple: true
+      options:
+        - Linux
+        - macOS
+        - Windows
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Boundary confirmation
+      options:
+        - label: The proposal requires no network access or telemetry.
+          required: true
+        - label: The proposal does not require outputting matched values or absolute paths.
+          required: true
+        - label: All examples are synthetic and contain no private information.
+          required: true

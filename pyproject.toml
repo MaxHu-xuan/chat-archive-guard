@@ -12,9 +12,19 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{name = "Project contributors"}]
 dependencies = []
+keywords = [
+  "chat-archives",
+  "local-scanner",
+  "privacy",
+  "security",
+  "sqlite",
+]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
   "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.11",
@@ -22,7 +32,16 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Topic :: Security",
+  "Topic :: System :: Archiving",
+  "Topic :: Utilities",
 ]
+
+[project.urls]
+Homepage = "https://github.com/MaxHu-xuan/chat-archive-guard"
+Repository = "https://github.com/MaxHu-xuan/chat-archive-guard"
+Issues = "https://github.com/MaxHu-xuan/chat-archive-guard/issues"
+Changelog = "https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/CHANGELOG.md"
+Security = "https://github.com/MaxHu-xuan/chat-archive-guard/security/policy"
 
 [project.scripts]
 chat-archive-guard = "chat_archive_guard.cli:main"

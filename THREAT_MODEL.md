@@ -40,6 +40,8 @@
   only the mode-`0600` copy is opened with URI `mode=ro` and backed up to
   memory. Without that primitive, SQLite fails closed as
   `sqlite.sidecar_unsafe` rather than weakening the snapshot boundary.
+  Refused SQLite input is not counted in `files_scanned`, and the report is
+  explicitly incomplete and truncated.
 - Reports use a closed schema of relative path, category, and integer count.
 - All caught scan errors map to fixed categories; exception messages are
   discarded.

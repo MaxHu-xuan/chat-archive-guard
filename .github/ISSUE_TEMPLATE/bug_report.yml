@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a reproducible defect using synthetic data only
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not paste real archives, messages, credentials, personal data,
+        screenshots, logs, absolute paths, or sensitive filenames.
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: 3.11
+    validations:
+      required: true
+  - type: textarea
+    id: synthetic-steps
+    attributes:
+      label: Synthetic reproduction
+      description: Provide minimal commands that create new, non-sensitive input.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected values-free result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual values-free result
+      description: Share fixed categories and counts only; redact filenames if needed.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I used synthetic data and included no private or production information.
+          required: true
+        - label: This report does not describe a security vulnerability.
+          required: true

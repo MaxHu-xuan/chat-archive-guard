@@ -50,9 +50,9 @@ def synthetic_sensitive_values() -> dict:
         "secret.assignment": "pass" + "word=" + "C" * 16,
         "secret.jwt": ".".join(("eyJ" + "D" * 12, "E" * 12, "F" * 12)),
         "pii.email": synthetic_email(),
-        "pii.phone_cn": "139" + "0000" + "1234",
-        "pii.phone_nanp": "+1 " + "415" + " 555 " + "2671",
-        "pii.national_id_cn": "110105" + "19491231" + "002X",
+        "pii.phone_cn": "139" + "\u0660" * 4 + "\u0661" * 4,
+        "pii.phone_nanp": "+1 " + "202" + " 555 " + "0147",
+        "pii.national_id_cn": "\u0660" * 17 + "X",
         "pii.ip_address": "192" + ".0.2.1",
         "pii.payment_card": "4111" + "1111" + "1111" + "1111",
     }
@@ -445,6 +445,9 @@ class SQLiteTests(unittest.TestCase):
                     report = scan_tree(ScanConfig(root=root))
                     payload = json.dumps(report.to_dict(), sort_keys=True)
                     self.assertEqual(categories(report).get("sqlite.sidecar_unsafe"), 1)
+                    self.assertEqual(report.files_scanned, 0)
+                    self.assertFalse(report.complete)
+                    self.assertTrue(report.truncated)
                     self.assertNotIn(synthetic_provider_key(), payload)
                 finally:
                     external.unlink()
@@ -476,6 +479,9 @@ class SQLiteTests(unittest.TestCase):
                 report = scan_tree(ScanConfig(root=root))
 
             self.assertEqual(categories(report).get("sqlite.snapshot_changed"), 1)
+            self.assertEqual(report.files_scanned, 0)
+            self.assertFalse(report.complete)
+            self.assertTrue(report.truncated)
 
     @unittest.skipUnless(
         SECURE_SQLITE_SNAPSHOTS,
@@ -496,6 +502,9 @@ class SQLiteTests(unittest.TestCase):
                 report = scan_tree(ScanConfig(root=root))
 
             self.assertEqual(categories(report).get("sqlite.snapshot_changed"), 1)
+            self.assertEqual(report.files_scanned, 0)
+            self.assertFalse(report.complete)
+            self.assertTrue(report.truncated)
 
     @unittest.skipUnless(
         SECURE_SQLITE_SNAPSHOTS,
@@ -530,6 +539,9 @@ class SQLiteTests(unittest.TestCase):
                 report = scan_tree(ScanConfig(root=root))
 
             self.assertEqual(categories(report).get("sqlite.snapshot_changed"), 1)
+            self.assertEqual(report.files_scanned, 0)
+            self.assertFalse(report.complete)
+            self.assertTrue(report.truncated)
 
     @unittest.skipUnless(
         SECURE_SQLITE_SNAPSHOTS,
@@ -581,6 +593,9 @@ class SQLiteTests(unittest.TestCase):
             payload = json.dumps(report.to_dict(), sort_keys=True)
 
             self.assertIn("sqlite.open_error", categories(report))
+            self.assertEqual(report.files_scanned, 0)
+            self.assertFalse(report.complete)
+            self.assertTrue(report.truncated)
             self.assertNotIn(marker, payload)
             self.assertNotIn(str(root), payload)
             for arguments in ([str(root)], [str(root), "--json"]):
@@ -594,6 +609,117 @@ class SQLiteTests(unittest.TestCase):
                 self.assertEqual(stderr.getvalue(), "")
                 self.assertNotIn(marker, stdout.getvalue())
                 self.assertNotIn(str(root), stdout.getvalue())
+
+    def test_quick_check_error_is_incomplete_and_unscanned(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            database = root / "events.sqlite"
+            database.write_bytes(b"synthetic")
+            database.chmod(0o600)
+            connection = mock.Mock()
+            connection.execute.side_effect = sqlite3.OperationalError("synthetic")
+
+            with mock.patch(
+                "chat_archive_guard.scanner._open_sqlite_snapshot",
+                return_value=connection,
+            ):
+                report = scan_tree(ScanConfig(root=root))
+
+            self.assertEqual(categories(report).get("sqlite.quick_check_error"), 1)
+            self.assertEqual(report.files_scanned, 0)
+            self.assertFalse(report.complete)
+            self.assertTrue(report.truncated)
+            connection.close.assert_called_once_with()
+
+    def test_schema_error_is_incomplete_and_unscanned(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            database = root / "events.sqlite"
+            database.write_bytes(b"synthetic")
+            database.chmod(0o600)
+            connection = mock.Mock()
+            connection.execute.return_value.fetchall.return_value = [("ok",)]
+
+            with mock.patch(
+                "chat_archive_guard.scanner._open_sqlite_snapshot",
+                return_value=connection,
+            ):
+                with mock.patch(
+                    "chat_archive_guard.scanner._sqlite_table_names",
+                    side_effect=sqlite3.OperationalError("synthetic"),
+                ):
+                    report = scan_tree(ScanConfig(root=root))
+
+            self.assertEqual(categories(report).get("sqlite.schema_error"), 1)
+            self.assertEqual(report.files_scanned, 0)
+            self.assertFalse(report.complete)
+            self.assertTrue(report.truncated)
+            connection.close.assert_called_once_with()
+
+    def test_quick_check_failure_is_incomplete_after_table_scan(self) -> None:
+        class QuickCheckFailureConnection:
+            def __init__(self):
+                self.connection = sqlite3.connect(":memory:")
+
+            def execute(self, sql):
+                if sql == "PRAGMA quick_check(1)":
+                    cursor = mock.Mock()
+                    cursor.fetchall.return_value = [("not-ok",)]
+                    return cursor
+                return self.connection.execute(sql)
+
+            def close(self):
+                self.connection.close()
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            database = root / "events.sqlite"
+            database.write_bytes(b"synthetic")
+            database.chmod(0o600)
+            connection = QuickCheckFailureConnection()
+
+            with mock.patch(
+                "chat_archive_guard.scanner._open_sqlite_snapshot",
+                return_value=connection,
+            ):
+                report = scan_tree(ScanConfig(root=root))
+
+            self.assertEqual(categories(report).get("sqlite.quick_check_failed"), 1)
+            self.assertEqual(report.files_scanned, 1)
+            self.assertFalse(report.complete)
+            self.assertTrue(report.truncated)
+
+    def test_table_scan_error_is_incomplete_after_scan_attempt(self) -> None:
+        class TableFailureConnection:
+            def __init__(self):
+                self.connection = sqlite3.connect(":memory:")
+                self.connection.execute("CREATE TABLE events (body TEXT NOT NULL)")
+
+            def execute(self, sql):
+                if sql.startswith("SELECT * FROM"):
+                    raise sqlite3.OperationalError("synthetic")
+                return self.connection.execute(sql)
+
+            def close(self):
+                self.connection.close()
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            database = root / "events.sqlite"
+            database.write_bytes(b"synthetic")
+            database.chmod(0o600)
+            connection = TableFailureConnection()
+
+            with mock.patch(
+                "chat_archive_guard.scanner._open_sqlite_snapshot",
+                return_value=connection,
+            ):
+                report = scan_tree(ScanConfig(root=root))
+
+            self.assertEqual(categories(report).get("sqlite.table_scan_error"), 1)
+            self.assertEqual(report.files_scanned, 1)
+            self.assertFalse(report.complete)
+            self.assertTrue(report.truncated)
 
     def test_sqlite_and_wal_are_bounded_before_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -632,6 +758,11 @@ class SQLiteTests(unittest.TestCase):
                     report = scan_tree(ScanConfig(root=root))
 
             self.assertEqual(categories(report).get("sqlite.sidecar_unsafe"), 1)
+            self.assertEqual(report.files_seen, 1)
+            self.assertEqual(report.files_scanned, 0)
+            self.assertFalse(report.complete)
+            self.assertTrue(report.truncated)
+            self.assertFalse(report.ok)
             self.assertEqual(before_names, {path.name for path in root.iterdir()})
             self.assertEqual(before_digest, hashlib.sha256(database.read_bytes()).digest())
 
@@ -968,6 +1099,15 @@ class CliPrivacyTests(unittest.TestCase):
                     self.assertNotIn(marker, stdout.getvalue())
                     self.assertNotIn(str(root), stdout.getvalue())
                     self.assertEqual(stderr.getvalue(), "")
+                    if as_json:
+                        payload = json.loads(stdout.getvalue())
+                        self.assertFalse(payload["complete"])
+                        self.assertTrue(payload["truncated"])
+                        self.assertEqual(payload["summary"]["files_scanned"], 0)
+                    else:
+                        self.assertIn("complete=false", stdout.getvalue())
+                        self.assertIn("truncated=true", stdout.getvalue())
+                        self.assertIn("files_scanned=0", stdout.getvalue())
 
     def test_fatal_error_does_not_echo_requested_path(self) -> None:
         hidden_component = synthetic_provider_key()

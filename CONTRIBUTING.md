@@ -25,10 +25,34 @@ lines unless you independently choose to do so.
 Before submitting a change, run:
 
 ```console
-PYTHONPATH=src python -m unittest discover -s tests -v
-python scripts/privacy_audit.py
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src PYTHONWARNINGS=error::ResourceWarning python -X dev -m unittest discover -s tests -v
+PYTHONDONTWRITEBYTECODE=1 python scripts/privacy_audit.py
+PYTHONDONTWRITEBYTECODE=1 python scripts/privacy_audit.py --self-test
 ```
 
 Hosted CI runs Linux across Python 3.11-3.14 plus Python 3.11 and 3.14 boundary
 jobs on macOS and Windows. In PowerShell, set `PYTHONDONTWRITEBYTECODE` and
-`PYTHONPATH=src` through `$env:` before running the same Python commands.
+`PYTHONPATH=src` through `$env:` before running the same Python commands:
+
+```powershell
+$env:PYTHONDONTWRITEBYTECODE = "1"
+$env:PYTHONPATH = "src"
+python -X dev -W error::ResourceWarning -m unittest discover -s tests -v
+python scripts/privacy_audit.py
+python scripts/privacy_audit.py --self-test
+```
+
+## Change expectations
+
+- Keep changes focused and document user-visible behavior in `README.md` and
+  `CHANGELOG.md`.
+- Add Linux, macOS, and Windows coverage when behavior differs by platform.
+- Preserve the finite scan limits and fixed, values-free error categories.
+- Do not weaken SQLite no-follow copying, source-identity checks, read-only
+  opening, in-memory inspection, or fail-closed behavior.
+- Do not add network access, telemetry, analytics, or automatic updates.
+- Do not commit generated packages, caches, environments, coverage data, or
+  persistent archive fixtures.
+
+Pull requests should use the repository template. Security vulnerabilities
+must follow `SECURITY.md`, not a public pull request or issue.

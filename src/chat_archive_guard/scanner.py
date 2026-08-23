@@ -130,7 +130,7 @@ class _Accumulator:
         self.retained_finding_count = 0
         self.file_limit_reached = False
         self.finding_limit_reached = False
-        self.content_limit_reached = False
+        self.content_incomplete = False
 
     def relative(self, path: Path) -> str:
         try:
@@ -158,12 +158,15 @@ class _Accumulator:
             if self.finding_limit_reached:
                 break
 
-    def add_content_limit(self, path: Path, category: str, count: int = 1) -> None:
+    def add_incomplete(self, path: Path, category: str, count: int = 1) -> None:
         requested = int(count)
         if requested <= 0:
             return
-        self.content_limit_reached = True
+        self.content_incomplete = True
         self.add(path, category, requested)
+
+    def add_content_limit(self, path: Path, category: str, count: int = 1) -> None:
+        self.add_incomplete(path, category, count)
 
     def report(self) -> ScanReport:
         report_counts = Counter(self.counts)
@@ -174,7 +177,7 @@ class _Accumulator:
         truncated = (
             self.file_limit_reached
             or self.finding_limit_reached
-            or self.content_limit_reached
+            or self.content_incomplete
         )
         return ScanReport(
             files_seen=self.files_seen,
@@ -193,7 +196,10 @@ def _iter_paths(root: Path, accumulator: _Accumulator) -> Iterator[Path]:
 
     def on_walk_error(error: OSError) -> None:
         raw_path = getattr(error, "filename", None)
-        accumulator.add(Path(raw_path) if isinstance(raw_path, str) else root, "scan.read_error")
+        accumulator.add_incomplete(
+            Path(raw_path) if isinstance(raw_path, str) else root,
+            "scan.read_error",
+        )
 
     for dirpath, dirnames, filenames in os.walk(
         str(root), topdown=True, onerror=on_walk_error, followlinks=False
@@ -212,7 +218,7 @@ def _iter_paths(root: Path, accumulator: _Accumulator) -> Iterator[Path]:
                 else:
                     kept.append(name)
             except OSError:
-                accumulator.add(candidate, "scan.metadata_error")
+                accumulator.add_incomplete(candidate, "scan.metadata_error")
                 if accumulator.finding_limit_reached:
                     dirnames[:] = []
                     return
@@ -511,33 +517,34 @@ def _scan_sqlite(path: Path, config: ScanConfig, accumulator: _Accumulator) -> N
     try:
         connection = _open_sqlite_snapshot(path, config.max_file_bytes)
     except _SQLiteSidecarUnsafe:
-        accumulator.add(path, "sqlite.sidecar_unsafe")
+        accumulator.add_incomplete(path, "sqlite.sidecar_unsafe")
         return
     except _SQLiteSizeLimit:
         accumulator.add_content_limit(path, "scan.file_size_limit")
         return
     except _SQLiteSnapshotChanged:
-        accumulator.add(path, "sqlite.snapshot_changed")
+        accumulator.add_incomplete(path, "sqlite.snapshot_changed")
         return
     except (OSError, sqlite3.Error, ValueError):
-        accumulator.add(path, "sqlite.open_error")
+        accumulator.add_incomplete(path, "sqlite.open_error")
         return
 
     try:
         try:
             quick = connection.execute("PRAGMA quick_check(1)").fetchall()
         except sqlite3.Error:
-            accumulator.add(path, "sqlite.quick_check_error")
+            accumulator.add_incomplete(path, "sqlite.quick_check_error")
             return
         if quick != [("ok",)]:
-            accumulator.add(path, "sqlite.quick_check_failed")
+            accumulator.add_incomplete(path, "sqlite.quick_check_failed")
 
         try:
             table_names = _sqlite_table_names(connection)
         except sqlite3.Error:
-            accumulator.add(path, "sqlite.schema_error")
+            accumulator.add_incomplete(path, "sqlite.schema_error")
             return
 
+        accumulator.files_scanned += 1
         consumed = 0
         truncated_values = 0
         row_limit_reached = False
@@ -564,7 +571,7 @@ def _scan_sqlite(path: Path, config: ScanConfig, accumulator: _Accumulator) -> N
                     row_limit_reached = True
                     break
             except sqlite3.Error:
-                accumulator.add(path, "sqlite.table_scan_error")
+                accumulator.add_incomplete(path, "sqlite.table_scan_error")
         accumulator.add_content_limit(path, "scan.row_limit", int(row_limit_reached))
         accumulator.add_content_limit(path, "scan.value_limit", truncated_values)
     finally:
@@ -586,7 +593,7 @@ def scan_tree(config: ScanConfig) -> ScanReport:
         try:
             metadata = path.lstat()
         except OSError:
-            accumulator.add(path, "scan.metadata_error")
+            accumulator.add_incomplete(path, "scan.metadata_error")
             continue
         if _is_link_like(path, metadata):
             accumulator.add(path, "scan.symlink_skipped")
@@ -608,10 +615,9 @@ def scan_tree(config: ScanConfig) -> ScanReport:
         try:
             prefix = _read_prefix(path)
         except OSError:
-            accumulator.add(path, "scan.read_error")
+            accumulator.add_incomplete(path, "scan.read_error")
             continue
         if _sqlite_candidate(path, prefix):
-            accumulator.files_scanned += 1
             _scan_sqlite(path, normalized, accumulator)
             continue
         if not recognized_text:
@@ -619,7 +625,7 @@ def scan_tree(config: ScanConfig) -> ScanReport:
         try:
             data = _read_regular_file(path, normalized.max_file_bytes)
         except OSError:
-            accumulator.add(path, "scan.read_error")
+            accumulator.add_incomplete(path, "scan.read_error")
             continue
         if data is None:
             accumulator.add_content_limit(path, "scan.file_size_limit")

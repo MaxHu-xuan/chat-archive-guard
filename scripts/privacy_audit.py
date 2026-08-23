@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import ast
 import collections
+import errno
 import hashlib
 import json
 import os
@@ -89,12 +90,24 @@ PERSISTENT_DATA_SUFFIXES = frozenset(
 )
 FORBIDDEN_NAMES = frozenset((".DS_Store", ".env", "credentials.json", "secrets.json"))
 REQUIRED_FILES = (
+    ".github/CODEOWNERS",
+    ".github/ISSUE_TEMPLATE/bug_report.yml",
+    ".github/ISSUE_TEMPLATE/config.yml",
+    ".github/ISSUE_TEMPLATE/feature_request.yml",
+    ".github/ISSUE_TEMPLATE/security_coordination.yml",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/dependabot.yml",
+    ".github/workflows/ci.yml",
+    "CHANGELOG.md",
+    "CODE_OF_CONDUCT.md",
     "CONTRIBUTING.md",
     "LICENSE",
     "MANIFEST.in",
     "PROVENANCE.md",
     "README.md",
+    "RELEASING.md",
     "SECURITY.md",
+    "SUPPORT.md",
     "THREAT_MODEL.md",
     "pyproject.toml",
     "scripts/privacy_audit.py",
@@ -274,6 +287,13 @@ def _metadata_checks(root: Path, findings: Counter[Tuple[str, str]]) -> None:
         (r'(?m)^license-files\s*=\s*\[\s*"LICENSE"\s*\]\s*$', "metadata.license_file_missing"),
         (r'(?m)^requires-python\s*=\s*">=3\.11"\s*$', "metadata.python_requirement_mismatch"),
         (r'(?m)^dependencies\s*=\s*\[\s*\]\s*$', "metadata.runtime_dependencies_present"),
+        (r'(?m)^\s*"privacy",\s*$', "metadata.privacy_keyword_missing"),
+        (r'(?m)^\s*"security",\s*$', "metadata.security_keyword_missing"),
+        (r'(?m)^\s*"sqlite",\s*$', "metadata.sqlite_keyword_missing"),
+        (r'(?m)^\s*"Operating System :: OS Independent",\s*$', "metadata.os_classifier_missing"),
+        (r'(?m)^Homepage\s*=\s*"https://github\.com/MaxHu-xuan/chat-archive-guard"\s*$', "metadata.homepage_missing"),
+        (r'(?m)^Repository\s*=\s*"https://github\.com/MaxHu-xuan/chat-archive-guard"\s*$', "metadata.repository_missing"),
+        (r'(?m)^Issues\s*=\s*"https://github\.com/MaxHu-xuan/chat-archive-guard/issues"\s*$', "metadata.issues_missing"),
         (r'(?m)^chat-archive-guard\s*=\s*"chat_archive_guard\.cli:main"\s*$', "metadata.console_script_mismatch"),
         (r'(?m)^package-dir\s*=\s*\{\s*""\s*=\s*"src"\s*\}\s*$', "metadata.package_directory_mismatch"),
         (r"setuptools>=77\.0\.3", "metadata.build_backend_too_old"),
@@ -288,6 +308,22 @@ def _metadata_checks(root: Path, findings: Counter[Tuple[str, str]]) -> None:
         readme = ""
     if "Python 3.11 or newer is required." not in readme:
         findings[("README.md", "metadata.python_documentation_mismatch")] += 1
+    for phrase, category in (
+        ("ChatArchiveGuard（聊天归档守护）", "metadata.bilingual_name_missing"),
+        ("### Platform behavior", "metadata.platform_documentation_missing"),
+        ("format.invalid_json", "metadata.verifiable_example_missing"),
+    ):
+        if phrase not in readme:
+            findings[("README.md", category)] += 1
+
+    try:
+        codeowners = (root / ".github" / "CODEOWNERS").read_text(
+            encoding="utf-8"
+        )
+    except (OSError, UnicodeError):
+        codeowners = ""
+    if codeowners.strip() != "* @MaxHu-xuan":
+        findings[(".github/CODEOWNERS", "metadata.codeowners_mismatch")] += 1
 
     try:
         manifest_lines = set(
@@ -295,7 +331,16 @@ def _metadata_checks(root: Path, findings: Counter[Tuple[str, str]]) -> None:
         )
     except (OSError, UnicodeError):
         return
-    for entry in ("include LICENSE", "include scripts/privacy_audit.py"):
+    for entry in (
+        "include CHANGELOG.md",
+        "include CODE_OF_CONDUCT.md",
+        "include LICENSE",
+        "include RELEASING.md",
+        "include SECURITY.md",
+        "include SUPPORT.md",
+        "include scripts/privacy_audit.py",
+        "recursive-include .github *",
+    ):
         if entry not in manifest_lines:
             findings[("MANIFEST.in", "metadata.sdist_entry_missing")] += 1
 
@@ -453,6 +498,17 @@ def _is_own_unpacked_sdist(root: Path) -> bool:
         for key, value in (line.split(":", 1),)
     }
     required_manifest_entries = {
+        ".github/CODEOWNERS",
+        ".github/ISSUE_TEMPLATE/bug_report.yml",
+        ".github/ISSUE_TEMPLATE/config.yml",
+        ".github/ISSUE_TEMPLATE/feature_request.yml",
+        ".github/ISSUE_TEMPLATE/security_coordination.yml",
+        ".github/PULL_REQUEST_TEMPLATE.md",
+        "CHANGELOG.md",
+        "CODE_OF_CONDUCT.md",
+        "RELEASING.md",
+        "SECURITY.md",
+        "SUPPORT.md",
         "pyproject.toml",
         "scripts/privacy_audit.py",
         "src/chat_archive_guard.egg-info/PKG-INFO",
@@ -475,7 +531,7 @@ def self_test(project_root: Path = PROJECT_ROOT, sdist: bool = False) -> bool:
         values = (
             "/ho" + "me/" + "sample-user/notes",
             "person" + chr(64) + "example.invalid",
-            "155" + "0000" + "1234",
+            "139" + "\u0660" * 4 + "\u0661" * 4,
             "192" + ".0.2.1",
             "s" + "k-" + "A" * 24,
             "-----BEGIN " + "PRIVATE KEY-----",
@@ -565,6 +621,33 @@ def self_test(project_root: Path = PROJECT_ROOT, sdist: bool = False) -> bool:
             for row in rejected_report["findings"]
             if row["category"] == "artifact.generated_directory"
         }
+        walk_root = root / "walk-root"
+        walk_root.mkdir()
+        walk_root = walk_root.resolve(strict=True)
+        original_walk = os.walk
+
+        def denied_walk(*args, **kwargs):
+            del args
+            onerror = kwargs.get("onerror")
+            if onerror is not None:
+                onerror(
+                    OSError(
+                        errno.EACCES,
+                        "synthetic directory error",
+                        str(walk_root / "blocked"),
+                    )
+                )
+            return iter(())
+
+        os.walk = denied_walk
+        try:
+            walk_report = audit(walk_root, validate_release=False)
+        finally:
+            os.walk = original_walk
+        walk_findings = {
+            (str(row["path"]), str(row["category"]))
+            for row in walk_report["findings"]
+        }
         return (
             not bool(rejected_report["ok"])
             and SDIST_EGG_INFO not in rejected_generated
@@ -572,6 +655,8 @@ def self_test(project_root: Path = PROJECT_ROOT, sdist: bool = False) -> bool:
                 "src/lookalike.egg-info",
                 "chat_archive_guard.egg-info",
             }.issubset(rejected_generated)
+            and not bool(walk_report["ok"])
+            and ("blocked", "scan.walk_error") in walk_findings
         )
 
 

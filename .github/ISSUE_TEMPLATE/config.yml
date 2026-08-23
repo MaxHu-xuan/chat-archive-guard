@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security policy
+    url: https://github.com/MaxHu-xuan/chat-archive-guard/security/advisories/new
+    about: Report vulnerabilities privately and never include real data.
+  - name: Support guide
+    url: https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/SUPPORT.md
+    about: Read the supported scope and synthetic-reproducer rules first.

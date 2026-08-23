@@ -4,13 +4,26 @@
 
 This project is pre-1.0 security software. Do not expose it as a privileged
 service or run it against an untrusted, concurrently mutated filesystem.
+Security fixes are provided on a best-effort basis for the latest published
+pre-1.0 release and the current default branch. Older revisions are not
+supported.
 
 ## Reporting a vulnerability
 
-Report vulnerabilities privately to the repository owner. Do not include real
-credentials, personal data, chat excerpts, databases, or archive filenames.
-Use a minimal synthetic reproducer and identify the affected version and
-finding category.
+Use GitHub's private vulnerability-reporting control on the repository
+`Security` page when it is available. If GitHub does not show that control,
+use the repository's `Private security coordination request` issue form. That
+public form is only for asking the maintainer to establish a private channel;
+do not describe the vulnerability there.
+
+Do not include real credentials, personal data, chat excerpts, databases,
+archive filenames, screenshots, logs, or absolute machine paths. Use a minimal
+synthetic reproducer and identify only the affected version, operating-system
+family, Python version, and fixed finding category. Never test against systems
+or data you are not authorized to access.
+
+Acknowledgement and remediation timing depend on severity and maintainer
+availability. No response-time or disclosure-date guarantee is made.
 
 ## Operational guidance
 

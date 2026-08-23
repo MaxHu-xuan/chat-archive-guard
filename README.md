@@ -1,11 +1,20 @@
 # ChatArchiveGuard（聊天归档守护）
 
-ChatArchiveGuard is a local, read-only diagnostic CLI for text, JSON, JSONL,
-and SQLite chat archives. It detects common secret and personal-data patterns,
-malformed records, SQLite integrity failures, and overly broad POSIX file
-modes.
+- **English name:** ChatArchiveGuard
+- **中文名：**聊天归档守护
 
-中文简介：在本地只读扫描聊天归档，检查秘密信息、个人数据、格式错误、SQLite 完整性和文件权限；报告只返回相对路径、类别与数量，不回显聊天内容。
+**Positioning / 定位：** A local, read-only privacy and integrity diagnostic
+for text, JSON, JSONL, and SQLite chat archives. / 面向文本、JSON、JSONL 与
+SQLite 聊天归档的本地只读隐私与完整性诊断工具。
+
+It detects common secret and personal-data patterns, malformed records, SQLite
+integrity failures, and overly broad POSIX file modes. It is not a backup or
+recovery tool, message viewer, attachment scanner, OCR system, or exhaustive
+DLP product.
+
+它检查常见秘密信息、个人数据、格式错误、SQLite 完整性和过宽的 POSIX
+文件权限；它不负责备份恢复、消息浏览、附件扫描、OCR，也不承诺穷尽所有
+敏感信息类型。
 
 Its output contract is intentionally narrow: reports contain only a path
 relative to the scan root, a category, and a count. Matching text, JSON values,
@@ -70,6 +79,17 @@ positive and cannot exceed these hard maxima.
 ## Install and run
 
 Python 3.11 or newer is required. The runtime has no third-party dependencies.
+The project is not yet published to a package index; install it from a reviewed
+source checkout.
+
+The local-only guarantee applies to the installed scanner at runtime. Package
+installers and PEP 517 build isolation may contact a configured package index
+to obtain build tools. To install a previously reviewed wheel without index
+access or dependency resolution, use:
+
+```console
+python -m pip install --no-index --no-deps /path/to/chat_archive_guard-0.1.0-py3-none-any.whl
+```
 
 ```console
 python -m pip install .
@@ -83,8 +103,58 @@ For an uninstalled checkout:
 PYTHONPATH=src python -m chat_archive_guard /path/to/archive --json
 ```
 
+PowerShell uses a separate environment-variable syntax:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m chat_archive_guard C:\path\to\archive --json
+```
+
 Exit status is `0` when no findings exist, `1` when findings exist, and `2`
 when the scan root or limits are invalid.
+
+### Verify the installation with synthetic input
+
+On Linux or macOS:
+
+```sh
+demo_dir="$(mktemp -d)"
+demo_dir="$(cd "$demo_dir" && pwd -P)"
+printf '%s\n' '{invalid' > "$demo_dir/broken.json"
+chmod 600 "$demo_dir/broken.json"
+chat-archive-guard "$demo_dir" --json
+rm -r "$demo_dir"
+```
+
+On Windows PowerShell:
+
+```powershell
+$demo = Join-Path ([System.IO.Path]::GetTempPath()) ("chat-archive-guard-" + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $demo | Out-Null
+Set-Content -Path (Join-Path $demo "broken.json") -Value "{invalid" -Encoding utf8
+chat-archive-guard $demo --json
+Remove-Item -LiteralPath $demo -Recurse
+```
+
+The deliberately malformed synthetic file must produce exit status `1`, an
+`ok=false` report, and one `format.invalid_json` finding. The report must not
+contain the absolute temporary path or the invalid input value.
+
+### Platform behavior
+
+| Capability | Linux | macOS | Windows |
+| --- | --- | --- | --- |
+| Text, JSON, and JSONL inspection | Supported | Supported | Supported |
+| SQLite, WAL, and SHM inspection | Supported when `O_NOFOLLOW` is exposed | Supported when `O_NOFOLLOW` is exposed | Fails closed as `sqlite.sidecar_unsafe` with standard-library Python |
+| Permission diagnostic | POSIX group/other mode bits | POSIX group/other mode bits | ACLs are not inferred or audited |
+| Link defense | Symlinks rejected or skipped | Symlinks rejected or skipped | Reparse points and junction-like entries rejected or skipped |
+
+Windows is a supported platform, but its standard-library Python does not
+provide the atomic no-follow primitive required by this threat model for
+SQLite sidecars. The scanner therefore reports that SQLite input as unsafe
+instead of silently opening it. Such a database is not counted in
+`files_scanned`; the report sets `complete=false` and `truncated=true`. Do not
+treat `chmod` output on Windows as an ACL security assessment.
 
 ## Finding categories
 
@@ -102,6 +172,10 @@ When a file-count or finding-count limit stops traversal, or a byte, row, or
 value limit leaves content uninspected, the limit is itself a finding. Reports
 then set `complete=false`, `truncated=true`, and cannot be healthy, so a bounded
 scan cannot report green merely because content remained uninspected.
+Metadata/read failures and SQLite snapshot, open, integrity, schema, or table
+scan failures that leave content unverified use the same incomplete/truncated
+state alongside their fixed finding category. `files_scanned` counts supported
+files whose content scan reached its inspection phase, not files merely seen.
 
 Pattern matches are indicators, not proof. False positives and false negatives
 are possible, so this tool complements rather than replaces data governance.
@@ -153,3 +227,6 @@ final source archive and its provenance before publication.
 
 Contributions are accepted under Apache-2.0. Use synthetic test data only and
 follow `CONTRIBUTING.md`; no DCO sign-off or personal information is required.
+See `SUPPORT.md` for help, `SECURITY.md` for private vulnerability reporting,
+and `CHANGELOG.md` for release-facing changes. Community standards are in
+`CODE_OF_CONDUCT.md`; the maintainer checklist is in `RELEASING.md`.

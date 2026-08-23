@@ -1,0 +1,26 @@
+name: Private security coordination request
+description: Ask for a private channel without disclosing vulnerability details
+title: "[Security coordination request]"
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not include vulnerability details, archives, credentials, personal
+        data, filenames, paths, screenshots, logs, or reproduction steps in
+        this public issue. This form exists only when GitHub private
+        vulnerability reporting is unavailable to you.
+  - type: input
+    id: affected-version
+    attributes:
+      label: Affected package version
+      description: A version number only; do not add technical details.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: checkboxes
+    id: disclosure-boundary
+    attributes:
+      label: Public disclosure boundary
+      options:
+        - label: This issue contains only a request for private coordination and no vulnerability details or private data.
+          required: true
