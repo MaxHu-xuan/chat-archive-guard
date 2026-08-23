@@ -1,0 +1,7 @@
+include README.md
+include LICENSE
+include CONTRIBUTING.md
+include PROVENANCE.md
+include SECURITY.md
+include THREAT_MODEL.md
+include scripts/privacy_audit.py
