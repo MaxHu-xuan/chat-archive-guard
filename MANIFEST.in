@@ -8,5 +8,6 @@ include SECURITY.md
 include RELEASING.md
 include SUPPORT.md
 include THREAT_MODEL.md
+include scripts/canonicalize_sdist.py
 include scripts/privacy_audit.py
 recursive-include .github *
