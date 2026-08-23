@@ -65,6 +65,18 @@ def categories(report) -> dict:
     return values
 
 
+@contextlib.contextmanager
+def closing_sqlite(database):
+    """Commit or roll back, then close the SQLite handle on every platform."""
+
+    connection = sqlite3.connect(str(database))
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
+
+
 class TextAndFormatTests(unittest.TestCase):
     def test_counts_only_json_and_no_secret_echo(self) -> None:
         secret = synthetic_provider_key()
@@ -418,7 +430,7 @@ class SQLiteTests(unittest.TestCase):
             with self.subTest(suffix=suffix), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp).resolve()
                 database = root / "events.sqlite"
-                with sqlite3.connect(str(database)) as connection:
+                with closing_sqlite(database) as connection:
                     connection.execute("CREATE TABLE events (body TEXT NOT NULL)")
                 database.chmod(0o600)
                 external = root.parent / (root.name + "-external")
@@ -445,7 +457,7 @@ class SQLiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             database = root / "events.sqlite"
-            with sqlite3.connect(str(database)) as connection:
+            with closing_sqlite(database) as connection:
                 connection.execute("CREATE TABLE events (body TEXT NOT NULL)")
             database.chmod(0o600)
             from chat_archive_guard import scanner
@@ -473,7 +485,7 @@ class SQLiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             database = root / "events.sqlite"
-            with sqlite3.connect(str(database)) as connection:
+            with closing_sqlite(database) as connection:
                 connection.execute("CREATE TABLE events (body TEXT NOT NULL)")
             database.chmod(0o600)
 
@@ -493,7 +505,7 @@ class SQLiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             database = root / "events.sqlite"
-            with sqlite3.connect(str(database)) as connection:
+            with closing_sqlite(database) as connection:
                 connection.execute("CREATE TABLE events (body TEXT NOT NULL)")
             database.chmod(0o600)
             from chat_archive_guard import scanner
@@ -587,7 +599,7 @@ class SQLiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             database = root / "large.sqlite"
-            with sqlite3.connect(str(database)) as connection:
+            with closing_sqlite(database) as connection:
                 connection.execute("CREATE TABLE events (body BLOB NOT NULL)")
                 connection.execute("INSERT INTO events(body) VALUES (?)", (b"x" * 8192,))
             database.chmod(0o600)
@@ -604,22 +616,20 @@ class SQLiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             database = root / "events.sqlite"
-            with sqlite3.connect(str(database)) as connection:
+            with closing_sqlite(database) as connection:
                 connection.execute("CREATE TABLE events (body TEXT NOT NULL)")
                 connection.execute("INSERT INTO events(body) VALUES ('safe')")
             database.chmod(0o600)
             before_names = {path.name for path in root.iterdir()}
             before_digest = hashlib.sha256(database.read_bytes()).digest()
 
-            with (
-                mock.patch.object(scanner.os, "O_NOFOLLOW", None, create=True),
-                mock.patch.object(
+            with mock.patch.object(scanner.os, "O_NOFOLLOW", None, create=True):
+                with mock.patch.object(
                     scanner.sqlite3,
                     "connect",
                     side_effect=AssertionError("source SQLite must not be opened"),
-                ),
-            ):
-                report = scan_tree(ScanConfig(root=root))
+                ):
+                    report = scan_tree(ScanConfig(root=root))
 
             self.assertEqual(categories(report).get("sqlite.sidecar_unsafe"), 1)
             self.assertEqual(before_names, {path.name for path in root.iterdir()})
@@ -634,7 +644,7 @@ class SQLiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             database = root / "events.sqlite"
-            with sqlite3.connect(str(database)) as connection:
+            with closing_sqlite(database) as connection:
                 connection.execute("CREATE TABLE events (body TEXT NOT NULL)")
                 connection.executemany("INSERT INTO events(body) VALUES (?)", (("safe",), (secret,)))
             database.chmod(0o600)
@@ -655,7 +665,7 @@ class SQLiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             database = root / "events.sqlite"
-            with sqlite3.connect(str(database)) as connection:
+            with closing_sqlite(database) as connection:
                 connection.execute("CREATE TABLE events (body TEXT NOT NULL)")
                 connection.execute("INSERT INTO events(body) VALUES ('safe')")
             database.chmod(0o600)
@@ -675,7 +685,7 @@ class SQLiteTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             database = root / "events.sqlite"
-            with sqlite3.connect(str(database)) as connection:
+            with closing_sqlite(database) as connection:
                 connection.execute("CREATE TABLE events (body TEXT NOT NULL)")
                 connection.execute("INSERT INTO events(body) VALUES (?)", ("x" * 64,))
             database.chmod(0o600)
@@ -717,7 +727,7 @@ class SQLiteTests(unittest.TestCase):
     def test_fts_shadow_fallback_excludes_internal_tables(self) -> None:
         from chat_archive_guard import scanner
 
-        with sqlite3.connect(":memory:") as connection:
+        with closing_sqlite(":memory:") as connection:
             try:
                 connection.execute('CREATE VIRTUAL TABLE documents USING "fts5"(body)')
             except sqlite3.OperationalError:
@@ -896,11 +906,13 @@ class CliPrivacyTests(unittest.TestCase):
             self.assertNotIn(str(root), human_out.getvalue())
 
     def test_cli_output_is_deterministic(self) -> None:
+        from chat_archive_guard import scanner
+
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
-            for name in ("z-last.txt", "a-first.txt"):
+            for name in ("z-last.json", "a-first.json"):
                 path = root / name
-                path.write_text("safe", encoding="utf-8")
+                path.write_text("{invalid", encoding="utf-8")
                 path.chmod(0o640)
 
             def render(arguments):
@@ -912,10 +924,11 @@ class CliPrivacyTests(unittest.TestCase):
                     result = cli_main(arguments)
                 return result, stdout.getvalue(), stderr.getvalue()
 
-            first_json = render([str(root), "--json"])
-            second_json = render([str(root), "--json"])
-            first_human = render([str(root)])
-            second_human = render([str(root)])
+            with mock.patch.object(scanner, "_POSIX_MODE_SEMANTICS", False):
+                first_json = render([str(root), "--json"])
+                second_json = render([str(root), "--json"])
+                first_human = render([str(root)])
+                second_human = render([str(root)])
 
             self.assertEqual(first_json, second_json)
             self.assertEqual(first_human, second_human)
@@ -923,8 +936,12 @@ class CliPrivacyTests(unittest.TestCase):
             self.assertEqual(first_human[0], 1)
             self.assertEqual(first_json[2], "")
             self.assertEqual(first_human[2], "")
-            self.assertLess(first_json[1].find("a-first.txt"), first_json[1].find("z-last.txt"))
-            self.assertLess(first_human[1].find("a-first.txt"), first_human[1].find("z-last.txt"))
+            self.assertEqual(
+                json.loads(first_json[1])["summary"]["categories"],
+                {"format.invalid_json": 2},
+            )
+            self.assertLess(first_json[1].find("a-first.json"), first_json[1].find("z-last.json"))
+            self.assertLess(first_human[1].find("a-first.json"), first_human[1].find("z-last.json"))
 
     def test_internal_io_error_message_and_absolute_path_are_not_emitted(self) -> None:
         marker = synthetic_provider_key()
