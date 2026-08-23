@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible defect using synthetic data only
+description: Report a reproducible scan or reporting defect with synthetic data
 title: "[Bug] "
 labels:
   - bug
@@ -7,8 +7,9 @@ body:
   - type: markdown
     attributes:
       value: >-
-        Do not paste real archives, messages, credentials, personal data,
-        screenshots, logs, absolute paths, or sensitive filenames.
+        Use newly created synthetic input. Do not paste real archives, messages,
+        credentials, personal data, screenshots, logs, machine paths, or
+        sensitive filenames.
   - type: input
     id: version
     attributes:
@@ -44,14 +45,15 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: Expected values-free result
+      label: Expected result
+      description: Describe expected status, counts, or categories without real data.
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
-      label: Actual values-free result
-      description: Share fixed categories and counts only; redact filenames if needed.
+      label: Actual aggregate result
+      description: Run with --summary-only and share fixed status, counts, and categories only.
     validations:
       required: true
   - type: checkboxes

@@ -32,9 +32,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser = _SafeArgumentParser(
         prog="chat-archive-guard",
         description="Scan local chat archives without emitting matched content.",
+        allow_abbrev=False,
     )
     parser.add_argument("root", nargs="?", default=".", help="file or directory to scan")
     parser.add_argument("--json", action="store_true", help="emit stable JSON")
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="omit finding rows and relative filenames",
+    )
     parser.add_argument("--max-file-mib", type=int, default=16, help="maximum text file size")
     parser.add_argument("--max-sqlite-rows", type=int, default=100_000, help="maximum rows per database")
     parser.add_argument("--max-sqlite-value-kib", type=int, default=1024, help="maximum bytes inspected per SQLite value")
@@ -54,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _fatal(as_json: bool) -> int:
+def _fatal(as_json: bool, summary_only: bool = False) -> int:
     if as_json:
         payload = {
             "schema_version": 1,
@@ -63,9 +69,31 @@ def _fatal(as_json: bool) -> int:
             "truncated": False,
             "root": ".",
             "summary": {"files_seen": 0, "files_scanned": 0, "finding_count": 1, "categories": {"scan.root_unavailable": 1}},
-            "findings": [{"path": "[root]", "category": "scan.root_unavailable", "count": 1}],
         }
+        if summary_only:
+            payload.update(
+                {
+                    "report_mode": "summary-only",
+                    "details_omitted": True,
+                    "findings_omitted": True,
+                }
+            )
+        else:
+            payload["findings"] = [
+                {
+                    "path": "[root]",
+                    "category": "scan.root_unavailable",
+                    "count": 1,
+                }
+            ]
         print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+    elif summary_only:
+        print(
+            "FAIL files_seen=0 files_scanned=0 finding_count=1 "
+            "complete=false truncated=false details_omitted=true "
+            "findings_omitted=true"
+        )
+        print("category=scan.root_unavailable count=1")
     else:
         print("FAIL scan.root_unavailable count=1")
     return 2
@@ -74,6 +102,7 @@ def _fatal(as_json: bool) -> int:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     raw_args = list(argv) if argv is not None else sys.argv[1:]
     wants_json = "--json" in raw_args
+    wants_summary_only = "--summary-only" in raw_args
     try:
         args = build_parser().parse_args(raw_args)
         config = ScanConfig(
@@ -86,10 +115,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         report = scan_tree(config)
     except (OSError, ValueError, RuntimeError, UnicodeError):
-        return _fatal(wants_json)
+        return _fatal(wants_json, wants_summary_only)
 
     if args.json:
-        print(json.dumps(report.to_dict(), sort_keys=True, separators=(",", ":")))
+        payload = report.to_summary_dict() if args.summary_only else report.to_dict()
+        print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+    elif args.summary_only:
+        status = "OK" if report.ok else "FAIL"
+        print(
+            f"{status} files_seen={report.files_seen} "
+            f"files_scanned={report.files_scanned} "
+            f"finding_count={report.finding_count} "
+            f"complete={str(report.complete).lower()} "
+            f"truncated={str(report.truncated).lower()} "
+            "details_omitted=true findings_omitted=true"
+        )
+        for category, count in report.category_counts().items():
+            print(f"category={category} count={count}")
     else:
         status = "OK" if report.ok else "FAIL"
         print(

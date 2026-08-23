@@ -1,66 +1,127 @@
 # ChatArchiveGuard（聊天归档守护）
 
+[![CI](https://github.com/MaxHu-xuan/chat-archive-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/MaxHu-xuan/chat-archive-guard/actions/workflows/ci.yml)
+
 [中文说明](#中文说明) | [English overview](#english-overview) |
-[技术参考](#中文技术参考) | [Technical reference](#english-technical-reference)
+[中文技术参考](#中文技术参考) | [English technical reference](#english-technical-reference)
 
 ## 中文说明
 
-ChatArchiveGuard（聊天归档守护）帮助个人和团队在自己的电脑上检查聊天
-归档。它适合在保存、迁移、共享或进一步处理聊天导出文件之前，先做一次
-本地、只读的隐私与完整性检查。
+ChatArchiveGuard（聊天归档守护）是一款在本地运行的聊天归档检查工具。个人或团队可以在
+保存、迁移、共享或继续处理聊天导出文件之前，用它检查常见隐私风险、文件格式和 SQLite
+数据库完整性。
 
-扫描结果只包含相对文件路径、检查类别和数量，不会输出命中的聊天正文、
-JSON 值、SQL 值、异常原文或绝对路径。扫描器没有网络客户端、遥测或自动
-更新功能。
+工具只读扫描用户指定的文件或目录。默认报告只包含相对文件路径、固定检查类别和数量，
+不会输出命中的聊天正文、JSON 值、SQL 值、异常原文或绝对路径。扫描器不包含网络客户端、
+遥测或自动更新功能。
 
-### 它解决什么问题
+### 用户价值
 
-你可以用它完成本地聊天归档隐私扫描、离线密钥扫描、个人信息检测、
-JSON/JSONL 聊天导出校验，以及 SQLite 聊天数据库完整性检查。它会检查：
+一次扫描可以回答三个实际问题：
 
-- 常见密钥、令牌、凭证和私钥标记；
-- 邮箱、部分电话号码、IPv4 地址、证件号形态和通过 Luhn 校验的银行卡号形态；
-- 无效 UTF-8、JSON 和 JSONL；
-- SQLite 数据库完整性及可读取的文本值；
-- POSIX 系统上过宽的文件权限；
-- 符号链接、读取失败和超过资源上限的未完整扫描。
+1. 支持的文件中是否出现常见密钥、凭证或个人信息形态；
+2. JSON、JSONL 和 SQLite 等内容是否能按预期读取，SQLite 快检是否通过；
+3. 本次符合检查范围的内容是否全部完成扫描，是否有链接、读取错误或资源上限留下盲区。
 
-它不会连接聊天平台，也不会解析某个平台的专有导出包。它不是聊天阅读器、
-备份恢复工具、附件扫描器、OCR 工具或完整的数据防泄漏系统。
+这里的聊天归档完整性指文件格式、SQLite 结构和本次扫描覆盖状态。它不等于消息完整性，
+也不能证明归档没有丢消息、来源真实或文件从未被篡改。
 
-### 三步使用
+### 适用场景
 
-1. 在已经审核过的源码目录中安装：
+- 在把聊天导出交给分析、迁移或备份流程前，先做一次本地隐私审计。
+- 检查文本、JSON、JSONL 或 NDJSON 导出是否存在格式错误和常见敏感信息形态。
+- 检查 SQLite 聊天数据库、WAL 中已提交但尚未归并的记录，以及可读取的 FTS 文本。
+- 扫描一个目录中的多份当前日志和轮转日志，并明确哪些文件真正进入了内容检查。
+- 在 CI 或离线工作站中用固定退出码和聚合摘要执行交付前门禁。
+
+### 完整性检查
+
+ChatArchiveGuard 会按文件类型执行不同检查：
+
+- 文本、JSON 和 JSONL：检查 UTF-8 与结构格式，并扫描支持内容中的常见秘密和个人信息形态。
+- SQLite：对私有快照运行 `PRAGMA quick_check(1)`，扫描普通表和可访问的 FTS 虚拟表文本；
+  FTS 影子表不会重复计数。
+- WAL 和 SHM：只与对应主数据库一起复制到私有临时目录，再由 SQLite 打开副本。
+- 目录覆盖：用 `files_seen`、`files_scanned`、`complete` 和 `truncated` 区分遍历范围与实际
+  内容检查范围。
+
+轮转日志会作为独立文件处理。只有最终扩展名属于支持范围的文件，例如 `history.1.log`，
+才会进入文本扫描；`history.log.1` 和压缩后的 `.gz` 文件不会被自动识别为文本。工具不会
+拼接轮转序列，也不会判断时间段是否连续。
+
+### 隐私与安全
+
+- 扫描在本机完成，运行时只使用 Python 标准库。
+- 工具不会修改源文件或源数据库；SQLite 只从经过复核的私有副本读取。
+- 命中值不会进入报告，读取异常也只映射为固定类别。
+- 符号链接、类似链接的入口、并发变化和无法安全读取的 SQLite 会被拒绝或标记为不完整。
+- 文件数量、文本字节、SQLite 行数、单值大小和发现数量都有硬上限。
+
+默认报告中的相对文件名仍是元数据。使用 `--summary-only` 后，JSON 和文本输出都会省略
+全部发现明细与相对文件名，只保留真实状态、扫描计数和类别汇总，适合 CI 或分享
+脱敏报告。无论使用哪种报告模式，退出码和 `finding_count` 都不会被改写。
+
+摘要模式不会建立用户或渠道隔离。类别计数仍然汇总整个扫描根目录，因此调用者应先把根
+目录限制在自己有权检查的单个数据集，不要用一个跨用户目录生成共享摘要。
+
+### 快速开始
+
+需要 Python 3.11 或更高版本。当前版本尚未发布到包索引，请从已经审核的源码或 wheel
+安装。
+
+1. 从源码目录安装：
 
    ```console
    python -m pip install .
    ```
 
-2. 扫描一个文件或目录。需要程序处理结果时增加 `--json`：
+2. 扫描一个文件或目录：
 
    ```console
    chat-archive-guard /path/to/archive
    chat-archive-guard /path/to/archive --json
+   chat-archive-guard /path/to/archive --json --summary-only
    ```
 
-3. 查看退出码和结果中的 `ok`、`complete`、`truncated`。只有在没有发现项、
-   扫描完整且未截断时，`ok` 才会是 `true`。
+3. 同时查看退出码和 `ok`、`complete`、`truncated`。只有没有发现项、扫描完整且未截断时，
+   `ok` 才会是 `true`。
+
+若已经拿到审核过的 wheel，可以避免索引访问和依赖解析：
+
+```console
+python -m pip install --no-index --no-deps /path/to/chat_archive_guard-0.1.0-py3-none-any.whl
+```
+
+未安装时，macOS 和 Linux 可以从源码目录运行：
+
+```console
+PYTHONPATH=src python -m chat_archive_guard /path/to/archive --json
+```
+
+Windows PowerShell 使用不同的环境变量语法：
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m chat_archive_guard C:\path\to\archive --json
+```
 
 ### 看懂结果
 
 | 内容 | 含义 |
 | --- | --- |
-| 退出码 `0` | 没有发现项，并且扫描完整 |
-| 退出码 `1` | 发现问题，或有内容未能完整检查 |
+| 退出码 `0` | 没有发现项，并且符合范围的内容完成扫描 |
+| 退出码 `1` | 发现问题，或有符合范围的内容未能完整检查 |
 | 退出码 `2` | 扫描路径或参数无效 |
-| `files_seen` | 遍历到的常规文件数量 |
+| `files_seen` | 遍历到的常规文件数量，包括不支持内容检查的文件 |
 | `files_scanned` | 已进入受支持内容检查阶段的文件数量 |
-| `complete` | 符合范围的内容是否全部完成检查 |
-| `truncated` | 是否因限制或错误留下未检查内容 |
-| `findings` | 相对路径、固定类别和数量，不含命中值 |
+| `finding_count` | 所有类别的真实发现总数，包括摘要模式省略的明细 |
+| `complete` | 符合当前检查范围的内容是否全部完成检查 |
+| `truncated` | 是否因限制、读取失败或安全拒绝留下未检查内容 |
+| `findings` | 默认报告中的相对路径、固定类别和数量，不含命中值 |
+| `details_omitted`、`findings_omitted` | 摘要模式明确表示明细和文件名已省略 |
 
-下面是一个合成的无效 JSON 文件所产生的完整结果。`format.invalid_json`
-表示 JSON 格式错误：
+下面是默认 JSON 模式扫描一个合成无效文件后的完整结果。
+`format.invalid_json` 表示 JSON 格式错误：
 
 ```json
 {
@@ -81,33 +142,10 @@ JSON/JSONL 聊天导出校验，以及 SQLite 聊天数据库完整性检查。�
 }
 ```
 
-`complete=true` 只表示本次符合范围的内容完成了检查，不代表工具能证明文件中
-不存在任何可能的敏感信息。
+`complete=true` 只表示符合当前范围的内容完成检查，不代表聊天记录在业务上完整，也不代表
+工具能证明文件中不存在任何敏感信息。
 
-### 安装与平台差异
-
-需要 Python 3.11 或更高版本。运行时没有第三方依赖。目前项目尚未发布到包
-索引，请从已审核的源码或 wheel 安装。
-
-常规安装和 PEP 517 构建隔离可能访问已配置的包索引以取得构建工具。若已经
-拿到审核过的 wheel，可使用下面的命令避免索引访问和依赖解析：
-
-```console
-python -m pip install --no-index --no-deps /path/to/chat_archive_guard-0.1.0-py3-none-any.whl
-```
-
-未安装时，macOS 和 Linux 可以从源码目录运行：
-
-```console
-PYTHONPATH=src python -m chat_archive_guard /path/to/archive --json
-```
-
-Windows PowerShell 使用不同的环境变量语法：
-
-```powershell
-$env:PYTHONPATH = "src"
-python -m chat_archive_guard C:\path\to\archive --json
-```
+### 平台差异
 
 | 能力 | Linux | macOS | Windows |
 | --- | --- | --- | --- |
@@ -116,65 +154,73 @@ python -m chat_archive_guard C:\path\to\archive --json
 | 文件权限检查 | POSIX 权限位 | POSIX 权限位 | 不推断或审计 ACL |
 | 链接防护 | 拒绝或跳过符号链接 | 拒绝或跳过符号链接 | 拒绝或跳过重解析点及类似入口 |
 
-Windows 标准库 Python 没有本项目安全边界要求的原子 no-follow 打开能力。
-遇到 SQLite 时，工具会返回 `sqlite.sidecar_unsafe`，并设置
-`complete=false`、`truncated=true`，而不是降低保护等级后继续读取。
+Windows 标准库 Python 没有本项目安全边界要求的原子 no-follow 打开能力。遇到 SQLite 时，
+工具会返回 `sqlite.sidecar_unsafe`，并设置 `complete=false`、`truncated=true`，不会降低保护
+等级后继续读取。
 
-### 使用范围与限制
+### 使用局限
 
-工具会检查 `.txt`、`.md`、`.log`、`.csv`、`.tsv`、`.yaml`、`.yml`、
-`.json`、`.jsonl` 和 `.ndjson` 的文本内容。`.db`、`.sqlite`、`.sqlite3`
-以及带 SQLite 文件头的文件会按 SQLite 处理；WAL 和 SHM 只会随主数据库一起
-处理。
+内容检查覆盖 `.txt`、`.md`、`.log`、`.csv`、`.tsv`、`.yaml`、`.yml`、`.json`、
+`.jsonl` 和 `.ndjson`。`.db`、`.sqlite`、`.sqlite3` 以及带 SQLite 文件头的文件会按
+SQLite 处理。
 
-压缩包、加密文件、专有格式、附件、图片、音频和其他二进制文件的内容不在
-检查范围内。它们仍计入 `files_seen`，并在 POSIX 系统上接受权限检查，但不
-计入 `files_scanned`。请比较这两个字段，不要仅凭 `ok` 之外的单一数字判断
-归档是否已充分检查。
+压缩包、加密文件、专有格式、附件、图片、音频和其他二进制内容不在检查范围内。这些常规
+文件仍计入 `files_seen`，并在 POSIX 系统上接受权限检查，但不计入 `files_scanned`。
 
-文件名本身也是元数据。即使报告不输出命中内容，分享报告前仍应检查其中的
-相对文件名是否敏感。匹配结果只是风险提示，可能存在误报和漏报。
+工具不会验证消息完整性（message completeness）、来源归属（source attribution）、导出
+时间范围、参与者身份或平台签名。它也不是聊天阅读器、备份恢复工具、杀毒软件、OCR 工具、
+取证工具或完整的数据防泄漏系统。匹配结果只是风险提示，可能存在误报和漏报。
 
 ### 常见问题
 
 #### 会上传聊天数据吗？
 
-不会。安装后的扫描器只读取本地路径，没有网络客户端或遥测。安装过程可能
-访问包索引；需要完全离线时，请使用已审核 wheel 和前述 `--no-index --no-deps`
-命令。
+不会。安装后的扫描器只读取本地路径，没有网络客户端或遥测。常规安装可能访问包索引；
+需要完全离线时，请使用审核过的 wheel 和前述 `--no-index --no-deps` 命令。
 
 #### 能检查所有聊天导出吗？
 
-不能。只要文件属于支持的文本、JSON、JSONL 或 SQLite 范围，就不要求它来自
-特定应用；压缩、加密、专有格式和附件内容不受支持。
+不能。工具只检查支持的文本、JSON、JSONL 和 SQLite 内容，不要求文件来自特定应用。
+压缩、加密、专有格式和附件内容不受支持。
 
-#### 结果没有发现项就代表绝对安全吗？
+#### 能验证消息完整性和来源归属吗？
 
-不代表。完整且无发现的结果只说明已检查内容没有触发当前检测规则。未知模式、
-不支持的格式、语义重识别和检测器漏报仍然可能存在。
+不能。工具可以报告文件格式、SQLite 快检和扫描覆盖状态，但无法知道平台是否漏导、记录
+是否被删除，也不能认证某条消息来自哪个平台、账户或设备。需要这类结论时，应另外保存并
+核对原始来源、耐久记录、可读归档、记录计数、时间范围、导出签名或可信来源回执，并对
+轮转来源的归属冲突采用安全拒绝策略。本项目不建立或修复这些跨层关系。
+
+#### 如何处理轮转日志（rotated logs）？
+
+把需要检查的未压缩日志放在同一扫描根目录下，并确保最终扩展名是 `.log`。每份文件会独立
+扫描，但工具不会还原轮转顺序、去重或证明时间覆盖连续。压缩日志需要先在受控目录中安全
+解包，解包能力不属于本项目。工具也不会根据文件名推断日志属于哪个用户、渠道或来源。
+
+#### 没有发现项就代表绝对安全吗？
+
+不代表。完整且无发现的结果只说明已检查内容没有触发当前规则。未知模式、不支持的格式、
+语义重识别和检测器漏报仍然可能存在。
 
 #### 可以在 CI 中使用吗？
 
-可以，但 CI 必须有权读取输入。建议通过退出码和 JSON 摘要判断结果，不要把
-真实聊天内容或带敏感文件名的报告上传为公开构建产物。本项目自己的 CI 只使用
-运行时生成的合成数据。
+可以，但 CI 必须有权读取输入。建议使用 `--json --summary-only` 读取真实状态与类别汇总，
+避免在构建日志中暴露相对文件名。不要把真实聊天内容上传为公开构建产物。本项目自己的 CI
+只使用运行时生成的合成数据。
 
 ## 中文技术参考
 
 ### 工作原理
 
-1. 工具只遍历指定文件或目录。扫描根路径的链接型入口会被拒绝，目录中的链接
-   会被报告但不会跟随。
-2. 文本检测器只累计类别数量，不保留命中值。JSON 和 JSONL 会同时接受格式
-   校验。
-3. 在支持原子 no-follow 打开的系统上，SQLite 主文件和现有 WAL、SHM 会复制
-   到权限为 `0700` 的临时目录和权限为 `0600` 的临时文件。工具重新校验来源
-   身份和 SHA-256，只让 SQLite 打开私有副本，并在内存备份上运行
-   `PRAGMA quick_check(1)` 和内容检查。
-4. FTS 虚拟表内容只检查一次，FTS 影子表不会重复计数。来源发生并发变化、读取
-   失败或达到限制时，结果会明确标为不完整。
+1. 工具只遍历指定文件或目录。扫描根路径的链接型入口会被拒绝，目录内的链接会被报告但
+   不会跟随。
+2. 文本检测器只累计类别数量，不保留命中值。JSON 和 JSONL 同时接受格式校验。
+3. 在支持原子 no-follow 打开的系统上，SQLite 主文件和现有 WAL、SHM 会复制到权限为
+   `0700` 的临时目录和权限为 `0600` 的临时文件。工具重新校验来源身份和 SHA-256，
+   只让 SQLite 打开私有副本，再在内存备份上运行 `PRAGMA quick_check(1)` 和内容检查。
+4. FTS 虚拟表内容只检查一次，FTS 影子表不会重复计数。来源发生并发变化、读取失败或达到
+   限制时，结果会明确标为不完整。
 
-扫描器只使用 Python 标准库。更完整的威胁模型和残余风险见
+扫描器只使用 Python 标准库。完整边界和残余风险见
 [`THREAT_MODEL.md`](THREAT_MODEL.md)。
 
 ### 检查类别
@@ -197,156 +243,247 @@ Windows 标准库 Python 没有本项目安全边界要求的原子 no-follow �
 | `--max-findings` | 10,000 | 100,000 |
 
 达到文件数、发现数、字节、行数或值大小限制时，结果会出现对应发现项，并设置
-`complete=false`、`truncated=true`。有限扫描不会因为未检查内容暂时没有命中
-而返回健康结果。
+`complete=false`、`truncated=true`。有限扫描不会因为未检查内容暂时没有命中而返回健康
+结果。
 
 ## English overview
 
-ChatArchiveGuard checks exported chat archives on your own computer. Individuals
-and teams can run it before storing, migrating, sharing, or further processing
-chat exports. The scan is local and read-only.
+ChatArchiveGuard is a local chat archive checker for individuals and teams. Run
+it before storing, migrating, sharing, or further processing exported chats to
+inspect common privacy risks, file formats, and SQLite database integrity.
 
-Reports contain only relative file paths, fixed categories, and counts. They do
-not contain matched chat text, JSON values, SQL values, raw exception messages,
-or absolute paths. The scanner has no network client, telemetry, or automatic
-update check.
+The scanner reads only the file or directory you choose. Default reports contain
+relative paths, fixed categories, and counts. They never contain matched chat
+text, JSON values, SQL values, raw exceptions, or absolute source paths. The
+runtime has no network client, telemetry, or automatic update check.
 
-### What problem does it solve?
+### User value
 
-ChatArchiveGuard provides a local chat archive privacy scan, offline secret
-scanning and PII detection, JSON/JSONL chat export validation, and SQLite chat
-database integrity checks. It checks for:
+One scan answers three practical questions:
 
-- common keys, tokens, credential assignments, and private-key markers;
-- email addresses, selected phone formats, IPv4 addresses, national-ID-shaped
-  values, and Luhn-valid payment-card-shaped values;
-- malformed UTF-8, JSON, and JSONL;
-- SQLite integrity problems and readable text values;
-- broad file permissions on POSIX systems;
-- links, read failures, and resource limits that leave a scan incomplete.
+1. Do supported files contain common secret, credential, or personal-data
+   patterns?
+2. Can JSON, JSONL, and SQLite content be read as expected, and does SQLite pass
+   its integrity check?
+3. Did every eligible item finish scanning, or did links, read errors, or
+   resource limits leave a blind spot?
 
-It does not connect to a chat service or parse a vendor-specific export bundle.
-It is not a message viewer, backup or recovery tool, attachment scanner, OCR
-system, or exhaustive data-loss-prevention product.
+Chat archive integrity here means format integrity, SQLite structural integrity,
+and scan coverage. It does not mean message completeness, source authenticity,
+or proof that a file was never altered.
 
-### Three steps
+### Use cases
 
-1. Install from a reviewed source checkout:
+- Run a local chat export privacy audit before analysis, migration, or backup.
+- Validate text, JSON, JSONL, or NDJSON exports and scan supported content for
+  common sensitive-data patterns.
+- Inspect a SQLite chat database, committed records still visible in WAL, and
+  readable text in FTS virtual tables.
+- Scan current and rotated log files in one directory while seeing which files
+  actually entered content inspection.
+- Use stable exit codes and aggregate JSON summaries as an offline or CI
+  pre-delivery gate.
+
+### Integrity checks
+
+Checks depend on the file type:
+
+- Text, JSON, and JSONL: validate UTF-8 and structure, then scan eligible content
+  for common secret and personal-data patterns.
+- SQLite: run `PRAGMA quick_check(1)` on a private snapshot and inspect readable
+  text in regular and available FTS virtual tables. FTS shadow tables are not
+  counted twice.
+- WAL and SHM: copy present sidecars with their main database into a private
+  temporary directory before SQLite opens the copy.
+- Directory coverage: use `files_seen`, `files_scanned`, `complete`, and
+  `truncated` to distinguish traversal from completed content inspection.
+
+Rotated logs are treated as separate files. Only a file whose final extension
+is supported, such as `history.1.log`, enters text scanning. A file such as
+`history.log.1`, or a compressed `.gz` log, is not recognized as text. The tool
+does not join a rotation sequence or decide whether its time range is continuous.
+
+### Privacy and security
+
+- Scanning stays on the local machine and the runtime uses only the Python
+  standard library.
+- Source files and databases are not modified. SQLite reads only a reviewed
+  private copy.
+- Matched values never enter a report, and read failures map to fixed categories.
+- Symlinks, link-like entries, concurrent changes, and SQLite files that cannot
+  be opened safely are rejected or make the result incomplete.
+- Hard limits bound file count, text bytes, SQLite rows, individual values, and
+  retained findings.
+
+Relative filenames in default reports remain metadata. With `--summary-only`,
+JSON and text output omit every finding row and relative filename while keeping
+the real status, coverage counts, and category totals. Exit codes and
+`finding_count` do not change. This mode is intended for CI and safer report
+sharing.
+
+Summary-only mode does not create user or channel isolation. Category totals
+still cover the entire scan root. Limit the root to one dataset you are
+authorized to inspect before sharing an aggregate report.
+
+### Quick start
+
+Python 3.11 or newer is required. The project has not yet been published to a
+package index, so install from a reviewed checkout or wheel.
+
+1. Install from the source directory:
 
    ```console
    python -m pip install .
    ```
 
-2. Scan one file or directory. Add `--json` for machine-readable output:
+2. Scan a file or directory:
 
    ```console
    chat-archive-guard /path/to/archive
    chat-archive-guard /path/to/archive --json
+   chat-archive-guard /path/to/archive --json --summary-only
    ```
 
-3. Read the exit status and the `ok`, `complete`, and `truncated` fields. `ok`
-   is true only when there are no findings and the scan is complete and not
-   truncated.
+3. Read the exit code together with `ok`, `complete`, and `truncated`. `ok` is
+   `true` only when there are no findings and the eligible scan completed
+   without truncation.
 
-### Read the result
-
-| Item | Meaning |
-| --- | --- |
-| Exit `0` | No findings and the scan is complete |
-| Exit `1` | Findings exist or some eligible content was not fully checked |
-| Exit `2` | The scan path or limits are invalid |
-| `files_seen` | Regular files encountered during traversal |
-| `files_scanned` | Supported files that reached content inspection |
-| `complete` | Whether all eligible content completed inspection |
-| `truncated` | Whether a limit or error left content uninspected |
-| `findings` | Relative paths, fixed categories, and counts only |
-
-The JSON example in the Chinese section is language-independent and shows the
-complete stable schema. Deterministic ordering makes it suitable for local
-automation and authorized CI workflows.
-
-### Install and run
-
-Python 3.11 or newer is required. There are no third-party runtime dependencies.
-The project is not yet published to a package index; install it from a reviewed
-source checkout or wheel.
-
-A normal install or PEP 517 build isolation may contact a configured package
-index for build tools. Install a previously reviewed wheel without index access
-or dependency resolution with:
+With a reviewed wheel, installation can avoid index access and dependency
+resolution:
 
 ```console
 python -m pip install --no-index --no-deps /path/to/chat_archive_guard-0.1.0-py3-none-any.whl
 ```
 
-Run an uninstalled checkout on macOS or Linux with:
+Without installation, macOS and Linux can run from the checkout:
 
 ```console
 PYTHONPATH=src python -m chat_archive_guard /path/to/archive --json
 ```
 
-PowerShell uses a different environment-variable syntax:
+Windows PowerShell uses a different environment-variable syntax:
 
 ```powershell
 $env:PYTHONPATH = "src"
 python -m chat_archive_guard C:\path\to\archive --json
 ```
 
+### Read the result
+
+| Item | Meaning |
+| --- | --- |
+| Exit code `0` | No findings and every eligible item completed scanning |
+| Exit code `1` | A finding exists or eligible content was not fully inspected |
+| Exit code `2` | The scan path or arguments are invalid |
+| `files_seen` | Regular files encountered, including unsupported content |
+| `files_scanned` | Files that entered a supported content-inspection path |
+| `finding_count` | The true total across categories, including omitted detail rows |
+| `complete` | Whether all eligible content completed inspection |
+| `truncated` | Whether a limit, read failure, or safety refusal left content unchecked |
+| `findings` | Relative paths, fixed categories, and counts in the default report |
+| `details_omitted`, `findings_omitted` | Summary-mode flags confirming that details and filenames were omitted |
+
+This complete default JSON example uses a synthetic malformed file.
+`format.invalid_json` identifies the format error:
+
+```json
+{
+  "schema_version": 1,
+  "ok": false,
+  "complete": true,
+  "truncated": false,
+  "root": ".",
+  "summary": {
+    "files_seen": 1,
+    "files_scanned": 1,
+    "finding_count": 1,
+    "categories": {"format.invalid_json": 1}
+  },
+  "findings": [
+    {"path": "broken.json", "category": "format.invalid_json", "count": 1}
+  ]
+}
+```
+
+`complete=true` means only that eligible content completed the configured scan.
+It does not mean that the conversation is complete or that every sensitive-data
+shape is absent.
+
 ### Platform behavior
 
 | Capability | Linux | macOS | Windows |
 | --- | --- | --- | --- |
-| Text, JSON, and JSONL inspection | Supported | Supported | Supported |
-| SQLite, WAL, and SHM inspection | Supported when `O_NOFOLLOW` is exposed | Supported when `O_NOFOLLOW` is exposed | Fails closed with standard-library Python |
-| Permission diagnostic | POSIX mode bits | POSIX mode bits | ACLs are not inferred or audited |
-| Link defense | Symlinks rejected or skipped | Symlinks rejected or skipped | Reparse points and similar entries rejected or skipped |
+| Text, JSON, and JSONL | Supported | Supported | Supported |
+| SQLite, WAL, and SHM | Supported when `O_NOFOLLOW` exists | Supported when `O_NOFOLLOW` exists | Safely refused by standard Python |
+| Permission check | POSIX mode bits | POSIX mode bits | Does not infer or audit ACLs |
+| Link handling | Reject or skip symlinks | Reject or skip symlinks | Reject or skip reparse points and similar entries |
 
-Standard-library Python on Windows does not expose the atomic no-follow open
-required by this threat model. SQLite input therefore produces
-`sqlite.sidecar_unsafe`, `complete=false`, and `truncated=true` instead of being
-opened under a weaker guarantee.
+Standard Python on Windows does not provide the atomic no-follow open required
+by this project's SQLite boundary. A SQLite input returns
+`sqlite.sidecar_unsafe` with `complete=false` and `truncated=true`; the scanner
+does not continue with weaker protection.
 
-### Scope and limitations
+### Limitations
 
 Content inspection covers `.txt`, `.md`, `.log`, `.csv`, `.tsv`, `.yaml`,
 `.yml`, `.json`, `.jsonl`, and `.ndjson`. Files ending in `.db`, `.sqlite`, or
-`.sqlite3`, or carrying the SQLite header, are treated as databases. WAL and SHM
-sidecars are handled only with their main database.
+`.sqlite3`, or carrying the SQLite header, are treated as databases.
 
 Compressed, encrypted, proprietary, attachment, image, audio, and other binary
 content is unsupported. Those regular files still contribute to `files_seen`
 and receive the POSIX permission check, but do not enter `files_scanned`.
-Compare both fields before deciding whether the run covered what you intended.
 
-Relative filenames are metadata and may still be sensitive. Pattern matches are
-indicators rather than proof; false positives and false negatives are possible.
+The tool does not verify message completeness, source attribution, export date
+coverage, participant identity, or platform signatures. It is not a chat
+reader, backup-restoration tool, antivirus scanner, OCR system, forensic tool,
+or complete data-loss-prevention product. Pattern matches are indicators and
+can produce false positives or false negatives.
 
 ### FAQ
 
 #### Does ChatArchiveGuard upload chat data?
 
 No. The installed scanner reads local paths and contains no network client or
-telemetry. Package installation may contact an index; use a reviewed wheel with
-`--no-index --no-deps` when the installation must remain offline.
+telemetry. A normal installation may contact a package index. Use a reviewed
+wheel with `--no-index --no-deps` when installation must remain offline.
 
 #### Can it scan every chat export?
 
-No. It can inspect supported text, JSON, JSONL, and SQLite files regardless of
-which application produced them. Compressed, encrypted, proprietary, and
+No. It inspects supported text, JSON, JSONL, and SQLite content without requiring
+a specific source application. Compressed, encrypted, proprietary, and
 attachment content is out of scope.
+
+#### Can it verify message completeness or source attribution?
+
+No. It reports format integrity, SQLite integrity checks, and scan coverage. It
+cannot know whether a platform omitted records, whether someone deleted a
+message, or whether a record came from a claimed platform, account, or device.
+For those questions, separately reconcile original sources, a durable record,
+the readable archive, record counts, date ranges, export signatures, or trusted
+source receipts. Conflicting ownership for rotated sources should fail closed.
+ChatArchiveGuard does not build or repair those cross-layer relationships.
+
+#### How should I scan rotated logs?
+
+Place the uncompressed logs you are authorized to inspect under one narrow scan
+root and make sure each final extension is `.log`. Each file is scanned
+independently. ChatArchiveGuard does not reconstruct rotation order, remove
+duplicates, or prove continuous time coverage. Safe archive extraction remains
+the caller's responsibility. It also does not infer a log's user, channel, or
+source from its filename.
 
 #### Does a clean result prove that an archive is safe?
 
-No. A clean, complete result means no configured detector fired in the eligible
-content that was inspected. Unsupported formats, unknown patterns, semantic
-re-identification, and detector false negatives remain possible.
+No. A clean, complete result means no configured detector fired in eligible
+content that completed inspection. Unsupported formats, unknown patterns,
+semantic re-identification, and detector false negatives remain possible.
 
 #### Can it run in CI?
 
-Yes, when the CI system is authorized to read the input. Use exit codes and the
-JSON summary, keep reports private when relative filenames are sensitive, and
-never upload real conversations as public workflow artifacts. This project's CI
-uses only synthetic data created at runtime.
+Yes, when the CI system is authorized to read the input. Use
+`--json --summary-only` to retain real status and category counts without
+placing relative filenames in build logs. Never upload real conversations as
+public workflow artifacts. This project's CI uses only synthetic runtime data.
 
 ## English technical reference
 

@@ -29,7 +29,8 @@ availability. No response-time or disclosure-date guarantee is made.
 
 - Run as an unprivileged account with read access only to the intended archive.
 - Keep the scan root narrow; do not scan an entire home or system directory.
-- Treat report filenames as potentially sensitive metadata.
+- Treat relative filenames in default reports as potentially sensitive metadata;
+  use `--summary-only` when paths are unnecessary.
 - Do not redirect reports into the archive being scanned.
 - Keep SQLite WAL and SHM files together with the database so committed WAL
   records remain visible in the private snapshot.

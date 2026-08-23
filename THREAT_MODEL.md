@@ -16,6 +16,8 @@
 4. Detect common secret/PII patterns across supported text and SQLite values.
 5. Surface malformed records, SQLite integrity failures, and broad file modes.
 6. Bound memory and row consumption.
+7. Offer aggregate-only reporting that omits finding paths without changing
+   health, coverage, finding totals, categories, or exit behavior.
 
 ## Trust assumptions
 
@@ -43,6 +45,8 @@
   Refused SQLite input is not counted in `files_scanned`, and the report is
   explicitly incomplete and truncated.
 - Reports use a closed schema of relative path, category, and integer count.
+- Summary-only reports omit every finding row and relative path, retain category
+  totals, and explicitly mark details as omitted.
 - All caught scan errors map to fixed categories; exception messages are
   discarded.
 - File, retained-finding, text/SQLite byte, SQLite row, and SQLite value limits
@@ -59,11 +63,17 @@
   POSIX mode semantics are available.
 - Encrypted, compressed, proprietary, or remote database formats.
 - Exhaustive DLP, semantic re-identification, malware analysis, and OCR.
+- Message completeness, source attribution, participant identity, export date
+  coverage, and rotated-log ordering or ownership.
 - PII hidden by encoding, fragmentation, encryption, or unsupported formats.
 - Contents of unsupported regular-file formats. Such files remain visible in
   `files_seen` and receive the file-mode check, but do not enter
   `files_scanned` and do not alone make a report incomplete.
 - Filename confidentiality: relative paths are deliberately included.
+- Aggregate confidentiality: summary-only mode removes filenames but still
+  reveals counts and category presence across the caller-selected scan root.
+- User and channel authorization. The caller must choose a narrow root that
+  contains only data they are authorized to inspect.
 - SQLite virtual tables may be unavailable in the local SQLite build; this is
   reported only as a generic table-scan category.
 - Static publication checks cannot prove the absence of dynamically

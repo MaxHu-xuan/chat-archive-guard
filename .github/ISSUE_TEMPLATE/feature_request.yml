@@ -1,5 +1,5 @@
 name: Feature request
-description: Propose a bounded, privacy-preserving improvement
+description: Propose a focused improvement that preserves privacy boundaries
 title: "[Feature] "
 labels:
   - enhancement
@@ -7,20 +7,20 @@ body:
   - type: markdown
     attributes:
       value: >-
-        Proposals must preserve local-only, values-free, read-only, fail-closed
-        behavior. Use synthetic examples only.
+        Explain the user need with synthetic examples. Proposals must preserve
+        local-only, read-only, values-free, and fail-closed behavior.
   - type: textarea
     id: problem
     attributes:
       label: Problem
-      description: Describe the general problem without real archive details.
+      description: Describe who is affected and what cannot be done today, without real archive details.
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
       label: Proposed behavior
-      description: Include limits, failure categories, and platform behavior.
+      description: Explain the expected result, limits, failure categories, and platform behavior.
     validations:
       required: true
   - type: dropdown

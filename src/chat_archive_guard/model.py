@@ -37,23 +37,48 @@ class ScanReport:
     def ok(self) -> bool:
         return self.complete and not self.truncated and not self.findings
 
-    def to_dict(self) -> Dict[str, object]:
+    def category_counts(self) -> Dict[str, int]:
+        """Return deterministic aggregate counts without paths or values."""
+
         categories: Dict[str, int] = {}
         for item in self.findings:
             categories[item.category] = categories.get(item.category, 0) + item.count
+        return dict(sorted(categories.items()))
+
+    def _summary(self) -> Dict[str, object]:
+        return {
+            "files_seen": self.files_seen,
+            "files_scanned": self.files_scanned,
+            "finding_count": self.finding_count,
+            "categories": self.category_counts(),
+        }
+
+    def to_dict(self) -> Dict[str, object]:
+        """Return the stable default report, including relative finding paths."""
+
         return {
             "schema_version": 1,
             "ok": self.ok,
             "complete": self.complete,
             "truncated": self.truncated,
             "root": ".",
-            "summary": {
-                "files_seen": self.files_seen,
-                "files_scanned": self.files_scanned,
-                "finding_count": self.finding_count,
-                "categories": dict(sorted(categories.items())),
-            },
+            "summary": self._summary(),
             "findings": [item.to_dict() for item in self.findings],
+        }
+
+    def to_summary_dict(self) -> Dict[str, object]:
+        """Return an aggregate-only report with all finding rows omitted."""
+
+        return {
+            "schema_version": 1,
+            "report_mode": "summary-only",
+            "ok": self.ok,
+            "complete": self.complete,
+            "truncated": self.truncated,
+            "root": ".",
+            "summary": self._summary(),
+            "details_omitted": True,
+            "findings_omitted": True,
         }
 
 

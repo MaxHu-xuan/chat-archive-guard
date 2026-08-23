@@ -113,7 +113,8 @@ jobs:
         run: |
           demo_dir="$(mktemp -d)"
           report_file="$(mktemp)"
-          trap 'rm -r "$demo_dir"; rm -f "$report_file"' EXIT
+          summary_file="$(mktemp)"
+          trap 'rm -r "$demo_dir"; rm -f "$report_file" "$summary_file"' EXIT
           demo_dir="$(cd "$demo_dir" && pwd -P)"
           printf '%s\n' '{invalid' > "$demo_dir/broken.json"
           chmod 600 "$demo_dir/broken.json"
@@ -123,3 +124,9 @@ jobs:
           set -e
           test "$status" -eq 1
           python -c 'import json, pathlib, sys; data = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")); assert data["ok"] is False; assert data["summary"]["categories"] == {"format.invalid_json": 1}' "$report_file"
+          set +e
+          chat-archive-guard "$demo_dir" --json --summary-only > "$summary_file"
+          summary_status=$?
+          set -e
+          test "$summary_status" -eq 1
+          python -c 'import json, pathlib, sys; text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"); data = json.loads(text); assert data["summary"]["finding_count"] == 1; assert data["summary"]["categories"] == {"format.invalid_json": 1}; assert data["details_omitted"] is True; assert data["findings_omitted"] is True; assert "findings" not in data; assert "broken.json" not in text' "$summary_file"

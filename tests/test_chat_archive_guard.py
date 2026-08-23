@@ -1036,6 +1036,141 @@ class CliPrivacyTests(unittest.TestCase):
             self.assertNotIn(secret, human_out.getvalue())
             self.assertNotIn(str(root), human_out.getvalue())
 
+    def test_summary_only_omits_sensitive_filenames_without_hiding_findings(self) -> None:
+        hidden_filename = synthetic_provider_key() + ".json"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            archive = root / hidden_filename
+            archive.write_text("{invalid", encoding="utf-8")
+            archive.chmod(0o600)
+
+            def render(arguments):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(
+                    stderr
+                ):
+                    result = cli_main(arguments)
+                return result, stdout.getvalue(), stderr.getvalue()
+
+            default_result, _, default_error = render([str(root), "--json"])
+            json_result, json_output, json_error = render(
+                [str(root), "--json", "--summary-only"]
+            )
+            text_result, text_output, text_error = render(
+                [str(root), "--summary-only"]
+            )
+
+            payload = json.loads(json_output)
+            self.assertEqual(default_result, 1)
+            self.assertEqual(json_result, default_result)
+            self.assertEqual(text_result, default_result)
+            self.assertEqual(default_error, "")
+            self.assertEqual(json_error, "")
+            self.assertEqual(text_error, "")
+
+            for output in (json_output, text_output):
+                self.assertNotIn(hidden_filename, output)
+                self.assertNotIn(str(root), output)
+
+            self.assertEqual(payload["report_mode"], "summary-only")
+            self.assertTrue(payload["details_omitted"])
+            self.assertTrue(payload["findings_omitted"])
+            self.assertNotIn("findings", payload)
+            self.assertFalse(payload["ok"])
+            self.assertTrue(payload["complete"])
+            self.assertFalse(payload["truncated"])
+            self.assertEqual(payload["summary"]["files_seen"], 1)
+            self.assertEqual(payload["summary"]["files_scanned"], 1)
+            self.assertEqual(payload["summary"]["finding_count"], 1)
+            self.assertEqual(
+                payload["summary"]["categories"],
+                {"format.invalid_json": 1},
+            )
+            self.assertIn("finding_count=1", text_output)
+            self.assertIn("details_omitted=true", text_output)
+            self.assertIn("findings_omitted=true", text_output)
+            self.assertIn("category=format.invalid_json count=1", text_output)
+
+    def test_summary_only_fatal_output_is_aggregate_and_value_free(self) -> None:
+        hidden_component = synthetic_provider_key()
+        missing = Path(tempfile.gettempdir()) / hidden_component / "missing"
+
+        for as_json in (False, True):
+            with self.subTest(as_json=as_json):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                arguments = [str(missing), "--summary-only"]
+                if as_json:
+                    arguments.append("--json")
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(
+                    stderr
+                ):
+                    result = cli_main(arguments)
+
+                output = stdout.getvalue()
+                self.assertEqual(result, 2)
+                self.assertEqual(stderr.getvalue(), "")
+                self.assertNotIn(hidden_component, output)
+                self.assertIn("finding_count", output)
+                self.assertIn("findings_omitted", output)
+                if as_json:
+                    payload = json.loads(output)
+                    self.assertEqual(payload["summary"]["finding_count"], 1)
+                    self.assertEqual(
+                        payload["summary"]["categories"],
+                        {"scan.root_unavailable": 1},
+                    )
+                    self.assertNotIn("findings", payload)
+                else:
+                    self.assertIn("category=scan.root_unavailable count=1", output)
+
+    def test_summary_only_usage_error_keeps_omission_contract(self) -> None:
+        hidden_component = synthetic_provider_key()
+
+        for as_json in (False, True):
+            with self.subTest(as_json=as_json):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                arguments = ["--summary-only", "--unknown", hidden_component]
+                if as_json:
+                    arguments.insert(0, "--json")
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(
+                    stderr
+                ):
+                    result = cli_main(arguments)
+
+                output = stdout.getvalue()
+                self.assertEqual(result, 2)
+                self.assertEqual(stderr.getvalue(), "")
+                self.assertNotIn(hidden_component, output)
+                self.assertIn("findings_omitted", output)
+                if as_json:
+                    payload = json.loads(output)
+                    self.assertEqual(payload["report_mode"], "summary-only")
+                    self.assertTrue(payload["details_omitted"])
+                    self.assertTrue(payload["findings_omitted"])
+                    self.assertNotIn("findings", payload)
+
+    def test_long_option_abbreviations_are_rejected_without_echoing_values(self) -> None:
+        hidden_component = synthetic_provider_key()
+
+        for as_json in (False, True):
+            with self.subTest(as_json=as_json):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                arguments = ["--summary", hidden_component]
+                if as_json:
+                    arguments.insert(0, "--json")
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(
+                    stderr
+                ):
+                    result = cli_main(arguments)
+
+                self.assertEqual(result, 2)
+                self.assertEqual(stderr.getvalue(), "")
+                self.assertNotIn(hidden_component, stdout.getvalue())
+
     def test_cli_output_is_deterministic(self) -> None:
         from chat_archive_guard import scanner
 
