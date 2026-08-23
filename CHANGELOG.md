@@ -12,6 +12,10 @@ The project follows Semantic Versioning after its first public release.
   archives.
 - Explicit Linux, macOS, and Windows behavior and security boundaries.
 - Synthetic tests, publication privacy audit, and cross-platform CI.
+- Bilingual use-case, machine-readable-result, architecture, and FAQ guidance
+  for accurate search and AI discovery without expanding claimed capabilities.
+- Package discovery metadata for chat exports, offline scanning, secret
+  scanning, PII detection, JSONL, SQLite WAL, and read-only operation.
 
 ### Security
 

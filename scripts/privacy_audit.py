@@ -287,9 +287,15 @@ def _metadata_checks(root: Path, findings: Counter[Tuple[str, str]]) -> None:
         (r'(?m)^license-files\s*=\s*\[\s*"LICENSE"\s*\]\s*$', "metadata.license_file_missing"),
         (r'(?m)^requires-python\s*=\s*">=3\.11"\s*$', "metadata.python_requirement_mismatch"),
         (r'(?m)^dependencies\s*=\s*\[\s*\]\s*$', "metadata.runtime_dependencies_present"),
+        (r'(?m)^\s*"chat-export",\s*$', "metadata.chat_export_keyword_missing"),
+        (r'(?m)^\s*"offline-scanner",\s*$', "metadata.offline_scanner_keyword_missing"),
+        (r'(?m)^\s*"pii-detection",\s*$', "metadata.pii_detection_keyword_missing"),
         (r'(?m)^\s*"privacy",\s*$', "metadata.privacy_keyword_missing"),
+        (r'(?m)^\s*"read-only",\s*$', "metadata.read_only_keyword_missing"),
         (r'(?m)^\s*"security",\s*$', "metadata.security_keyword_missing"),
+        (r'(?m)^\s*"secret-scanning",\s*$', "metadata.secret_scanning_keyword_missing"),
         (r'(?m)^\s*"sqlite",\s*$', "metadata.sqlite_keyword_missing"),
+        (r'(?m)^\s*"wal",\s*$', "metadata.wal_keyword_missing"),
         (r'(?m)^\s*"Operating System :: OS Independent",\s*$', "metadata.os_classifier_missing"),
         (r'(?m)^Homepage\s*=\s*"https://github\.com/MaxHu-xuan/chat-archive-guard"\s*$', "metadata.homepage_missing"),
         (r'(?m)^Repository\s*=\s*"https://github\.com/MaxHu-xuan/chat-archive-guard"\s*$', "metadata.repository_missing"),
@@ -310,6 +316,9 @@ def _metadata_checks(root: Path, findings: Counter[Tuple[str, str]]) -> None:
         findings[("README.md", "metadata.python_documentation_mismatch")] += 1
     for phrase, category in (
         ("ChatArchiveGuard（聊天归档守护）", "metadata.bilingual_name_missing"),
+        ("## What problem does it solve? / 它解决什么问题？", "metadata.problem_statement_missing"),
+        ("## How it works / 工作原理", "metadata.architecture_summary_missing"),
+        ("## FAQ / 常见问题", "metadata.faq_missing"),
         ("### Platform behavior", "metadata.platform_documentation_missing"),
         ("format.invalid_json", "metadata.verifiable_example_missing"),
     ):

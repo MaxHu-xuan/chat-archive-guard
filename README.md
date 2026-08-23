@@ -21,8 +21,56 @@ relative to the scan root, a category, and a count. Matching text, JSON values,
 SQL values, exception messages, and absolute paths are never included.
 
 ChatArchiveGuard is licensed under the Apache License, Version 2.0. See
-`LICENSE`. Provenance and data-boundary details are documented in
-`PROVENANCE.md`.
+[`LICENSE`](LICENSE). Provenance and data-boundary details are documented in
+[`PROVENANCE.md`](PROVENANCE.md).
+
+## What problem does it solve? / 它解决什么问题？
+
+**Short answer:** ChatArchiveGuard answers “How can I scan exported chat logs
+and a SQLite chat database for secrets, personal data, malformed records, and
+integrity problems without uploading conversations or echoing matched values?”
+
+**简短回答：**如果你需要“在不上传聊天内容、也不回显命中值的前提下，
+检查导出的聊天记录与 SQLite 聊天数据库中是否存在密钥、个人信息、格式错误
+或完整性问题”，ChatArchiveGuard 提供一个本地、只读、可自动化的诊断入口。
+
+It is a good fit for these search and automation scenarios:
+
+- local chat archive privacy scan / 本地聊天归档隐私扫描；
+- offline secret scanning and PII detection for chat exports /
+  聊天导出文件的离线密钥与个人信息检测；
+- SQLite chat database integrity checks that account for WAL and SHM sidecars /
+  覆盖 WAL、SHM 的 SQLite 聊天数据库完整性检查；
+- JSON and JSONL chat export validation / JSON、JSONL 聊天导出格式校验；
+- counts-only security reports for CI or local review /
+  适合 CI 或本地复核的仅计数安全报告。
+
+ChatArchiveGuard does not connect to a chat service or understand a vendor's
+proprietary export schema. It scans supported files already present on disk.
+Use it when the desired output is a narrow diagnostic, not when you need a
+message reader, archive converter, backup workflow, or attachment-analysis
+pipeline.
+
+## How it works / 工作原理
+
+1. It walks only the requested file or directory and refuses link-like root
+   ancestry. Links found below a directory root are reported, not followed.
+2. It validates UTF-8, JSON, and JSONL while counting common secret and
+   personal-data indicators without retaining matched values.
+3. On platforms with atomic no-follow opens, it snapshots a SQLite database
+   together with present WAL and SHM sidecars into private temporary files,
+   rechecks identity and SHA-256, runs `PRAGMA quick_check(1)`, and scans an
+   in-memory backup. FTS virtual-table content is inspected once; FTS shadow
+   tables are excluded to avoid duplicate counts.
+4. It emits only relative paths, fixed categories, and integer counts. Any
+   limit or read failure that leaves eligible content unverified makes the
+   report incomplete instead of returning a misleading green result.
+
+The implementation uses the Python standard library and has no runtime
+dependencies. The installed scanner has no network client, telemetry,
+analytics, remote-service integration, or update check. The complete security
+boundary and residual risks are documented in
+[`THREAT_MODEL.md`](THREAT_MODEL.md).
 
 ## Privacy properties
 
@@ -113,6 +161,34 @@ python -m chat_archive_guard C:\path\to\archive --json
 Exit status is `0` when no findings exist, `1` when findings exist, and `2`
 when the scan root or limits are invalid.
 
+### Machine-readable result
+
+`--json` emits a stable, values-free schema. For the synthetic malformed file
+used below, the significant fields are:
+
+```json
+{
+  "schema_version": 1,
+  "ok": false,
+  "complete": true,
+  "truncated": false,
+  "root": ".",
+  "summary": {
+    "files_seen": 1,
+    "files_scanned": 1,
+    "finding_count": 1,
+    "categories": {"format.invalid_json": 1}
+  },
+  "findings": [
+    {"path": "broken.json", "category": "format.invalid_json", "count": 1}
+  ]
+}
+```
+
+Ordering is deterministic. `complete=true` means the eligible content stayed
+within configured limits and no scan failure left it unverified; it does not
+mean the tool can prove that every possible sensitive value is absent.
+
 ### Verify the installation with synthetic input
 
 On Linux or macOS:
@@ -180,6 +256,58 @@ files whose content scan reached its inspection phase, not files merely seen.
 Pattern matches are indicators, not proof. False positives and false negatives
 are possible, so this tool complements rather than replaces data governance.
 
+## FAQ / 常见问题
+
+### Does ChatArchiveGuard upload chat data? / 会上传聊天数据吗？
+
+No. The installed scanner operates on local paths and contains no network
+client or telemetry. Package installation may contact an index for build tools
+unless you use the documented reviewed-wheel, `--no-index`, and `--no-deps`
+workflow.
+
+不会。安装后的扫描器只处理本地路径，没有网络客户端或遥测。需要注意，常规
+安装流程可能为了取得构建工具而访问包索引；若要避免，应使用已审核 wheel
+以及文档中的 `--no-index --no-deps` 安装方式。
+
+### Is a SQLite chat database really scanned read-only? / SQLite 真的是只读吗？
+
+The source database and present WAL/SHM files are opened with read-only,
+no-follow descriptors where the platform exposes the required primitive.
+SQLite opens only a verified private copy and an in-memory backup. On standard
+Windows Python, that primitive is unavailable, so SQLite inspection fails
+closed as `sqlite.sidecar_unsafe` rather than weakening the guarantee.
+
+### Can it scan any chat export? / 所有聊天导出都能扫描吗？
+
+It can inspect supported text, JSON, JSONL, and SQLite files regardless of
+which application produced them. It does not decode compressed, encrypted,
+binary, proprietary, attachment, image, or audio formats, and it does not
+perform OCR. Compare `files_seen` with `files_scanned` and review the supported
+scope before treating a run as meaningful.
+
+### How is it different from a general secret scanner? / 与通用密钥扫描器有何区别？
+
+Its deliberately narrow focus is local chat archives: values-free output,
+format validation, SQLite integrity checks, WAL/SHM-aware snapshots, FTS
+handling, permission diagnostics on POSIX, and explicit incomplete-scan state.
+It is not a repository-history scanner or an exhaustive data-loss-prevention
+suite.
+
+### Can a clean result prove that an archive is safe? / 结果干净就能证明绝对安全吗？
+
+No. A clean, complete result means no configured detector fired in the
+eligible content that was inspected. Unsupported formats, unrecognized
+patterns, semantic re-identification, and detector false negatives remain out
+of scope. Use the result as auditable evidence for one bounded check, not as an
+absolute guarantee.
+
+### Can I use it in CI? / 可以接入 CI 吗？
+
+Yes, for synthetic fixtures or archives that your CI is authorized to read.
+Use exit codes and the JSON summary, keep reports private because relative
+filenames are metadata, and never upload real conversations as workflow
+artifacts. The repository's own CI uses only runtime-generated synthetic data.
+
 ## Development checks
 
 ```console
@@ -226,7 +354,9 @@ final source archive and its provenance before publication.
 ## Contributing and license
 
 Contributions are accepted under Apache-2.0. Use synthetic test data only and
-follow `CONTRIBUTING.md`; no DCO sign-off or personal information is required.
-See `SUPPORT.md` for help, `SECURITY.md` for private vulnerability reporting,
-and `CHANGELOG.md` for release-facing changes. Community standards are in
-`CODE_OF_CONDUCT.md`; the maintainer checklist is in `RELEASING.md`.
+follow [`CONTRIBUTING.md`](CONTRIBUTING.md); no DCO sign-off or personal
+information is required. See [`SUPPORT.md`](SUPPORT.md) for help,
+[`SECURITY.md`](SECURITY.md) for private vulnerability reporting, and
+[`CHANGELOG.md`](CHANGELOG.md) for release-facing changes. Community standards
+are in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md); the maintainer checklist is
+in [`RELEASING.md`](RELEASING.md).
