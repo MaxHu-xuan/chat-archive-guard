@@ -21,6 +21,8 @@ lines unless you independently choose to do so.
   telemetry.
 - Make diagnostics values-free: report categories and counts, not matched
   content or exception messages.
+- Preserve `--summary-only` as an aggregate-only mode: no finding rows or
+  relative filenames, with unchanged status, counts, categories, and exit code.
 
 Before submitting a change, run:
 

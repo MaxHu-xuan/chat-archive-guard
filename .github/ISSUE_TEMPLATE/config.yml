@@ -5,4 +5,4 @@ contact_links:
     about: Report vulnerabilities privately and never include real data.
   - name: Support guide
     url: https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/SUPPORT.md
-    about: Read the supported scope and synthetic-reproducer rules first.
+    about: Check supported formats, known limits, and safe reporting steps first.

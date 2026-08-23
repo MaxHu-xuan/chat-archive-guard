@@ -16,6 +16,12 @@ The project follows Semantic Versioning after its first public release.
   for accurate search and AI discovery without expanding claimed capabilities.
 - Package discovery metadata for chat exports, offline scanning, secret
   scanning, PII detection, JSONL, SQLite WAL, and read-only operation.
+- User-first Chinese and English guidance for archive integrity, privacy audits,
+  rotated-log handling, and the limits around message completeness and source
+  attribution.
+- Aggregate-only `--summary-only` JSON and text reports that preserve status,
+  coverage, finding totals, and categories while omitting finding rows and
+  relative filenames.
 
 ### Security
 

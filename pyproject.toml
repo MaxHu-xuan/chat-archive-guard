@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chat-archive-guard"
 version = "0.1.0"
-description = "Read-only local privacy and integrity diagnostics for chat archives"
+description = "Scan chat exports locally for secrets, PII patterns, format errors, and SQLite integrity issues"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -13,16 +13,20 @@ license-files = ["LICENSE"]
 authors = [{name = "Project contributors"}]
 dependencies = []
 keywords = [
+  "archive-integrity",
   "chat-archive",
   "chat-export",
   "jsonl",
+  "log-scanning",
   "offline-scanner",
   "pii-detection",
   "privacy",
+  "privacy-audit",
   "read-only",
   "security",
   "secret-scanning",
   "sqlite",
+  "sqlite-fts",
   "wal",
 ]
 classifiers = [
