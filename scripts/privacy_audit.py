@@ -110,6 +110,7 @@ REQUIRED_FILES = (
     "SUPPORT.md",
     "THREAT_MODEL.md",
     "pyproject.toml",
+    "scripts/canonicalize_sdist.py",
     "scripts/privacy_audit.py",
     "src/chat_archive_guard/__init__.py",
     "src/chat_archive_guard/__main__.py",
@@ -372,6 +373,7 @@ def _metadata_checks(root: Path, findings: Counter[Tuple[str, str]]) -> None:
         "include RELEASING.md",
         "include SECURITY.md",
         "include SUPPORT.md",
+        "include scripts/canonicalize_sdist.py",
         "include scripts/privacy_audit.py",
         "recursive-include .github *",
     ):

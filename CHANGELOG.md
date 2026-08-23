@@ -22,6 +22,8 @@ The project follows Semantic Versioning after its first public release.
 - Aggregate-only `--summary-only` JSON and text reports that preserve status,
   coverage, finding totals, and categories while omitting finding rows and
   relative filenames.
+- A cross-platform canonical source-archive builder with portable path checks,
+  fixed metadata, content verification, and reproducibility self-tests.
 
 ### Security
 
@@ -31,3 +33,5 @@ The project follows Semantic Versioning after its first public release.
   or absolute source paths.
 - Failures that leave eligible content unverified mark the report incomplete
   and truncated instead of overstating scan coverage.
+- Release builds remove local account metadata from source archives and use a
+  public fixed timestamp for wheel members.
