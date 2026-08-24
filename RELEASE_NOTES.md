@@ -1,11 +1,12 @@
 # ChatArchiveGuard 0.1.0 release notes
 
-Status: release-candidate draft. Version 0.1.0 has not been tagged, published, or
-uploaded from this working tree.
+Release date: 2026-08-25. This is the final v0.1.0 release text. Creating the
+tag, publishing the GitHub Release, and approving the PyPI environment remain
+separate maintainer actions.
 
 ## 中文
 
-ChatArchiveGuard 0.1.0 是首个公开候选版本。它是一道在交付、迁移、共享或分析聊天导出前
+ChatArchiveGuard 0.1.0 是首个公开版本。它是一道在交付、迁移、共享或分析聊天导出前
 运行的本地只读审计门禁，而不是聊天阅读器、导入器或搜索器。
 
 本版本提供：
@@ -31,7 +32,7 @@ SQLite 检查并报告 `sqlite.sidecar_unsafe`，不会降低保护等级。压�
 
 ## English
 
-ChatArchiveGuard 0.1.0 is the first public release candidate. It is a local,
+ChatArchiveGuard 0.1.0 is the first public release. It is a local,
 read-only audit gate to run before delivering, migrating, sharing, or analyzing
 chat exports. It is not a chat reader, importer, or search tool.
 
@@ -65,15 +66,27 @@ installation must remain offline.
 ## Maintainer release evidence
 
 The following evidence must come from the final clean candidate. Do not copy
-values from an earlier build or invent placeholders in a published release:
+values from an earlier build or place hashes directly in this document:
 
 - green Linux, macOS, and Windows CI for the final commit;
 - passing unit, generator, canonicalizer, source-tree, and unpacked-sdist
   privacy checks;
 - two matching canonical-sdist SHA-256 results from independent builds;
 - reviewed wheel and canonical-sdist member lists and metadata;
-- SHA-256 checksums and an SBOM generated from the final artifacts;
+- SHA-256 checksums in the external `SHA256SUMS` asset and a CycloneDX SBOM
+  generated from the final artifacts;
 - successful offline wheel installation and installed-command smoke test.
 
-The maintainer records this evidence in the reviewed release draft before
-creating tag `v0.1.0` or uploading any artifact.
+The GitHub Release must contain exactly these five assets and no others:
+
+- `SOURCE_COMMIT`
+- `SHA256SUMS`
+- `chat_archive_guard-0.1.0.cdx.json`
+- `chat_archive_guard-0.1.0-py3-none-any.whl`
+- `chat_archive_guard-0.1.0.tar.gz`
+
+The maintainer records the remaining evidence in the reviewed release draft
+before publishing it. The release workflow independently rechecks the exact
+asset allowlist, source commit, hashes, source and unpacked-sdist privacy,
+self-tests, canonical sdist, and offline wheel behavior. Only the verified
+wheel and canonical sdist are passed to PyPI.
