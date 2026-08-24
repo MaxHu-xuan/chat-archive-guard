@@ -27,6 +27,8 @@ The project follows Semantic Versioning after its first public release.
 
 ### Security
 
+- Preserve source-swap detection on Windows without comparing incompatible
+  path-stat and open-handle timestamp fields.
 - SQLite inspection requires an atomic no-follow open and otherwise fails
   closed as `sqlite.sidecar_unsafe`.
 - Reports contain relative paths, categories, and counts, never matched values
