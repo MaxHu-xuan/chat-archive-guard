@@ -3,10 +3,10 @@
 All notable changes to ChatArchiveGuard（聊天归档守护）will be recorded here.
 The project follows Semantic Versioning after its first public release.
 
-## Unreleased
+## 0.1.0 - 2026-08-25
 
-Release status: this remains an unreleased 0.1.0 candidate. No release date is
-recorded until the final tag and artifacts are approved.
+First public release. The tag, GitHub Release publication, and PyPI environment
+approval remain separate maintainer-controlled operations.
 
 ### Added
 
@@ -30,7 +30,11 @@ recorded until the final tag and artifacts are approved.
 - A deterministic runtime-only JSONL and SQLite demo generator with visibly
   invalid canaries, stable aggregate findings, and no committed data fixtures.
 - Separate macOS/Linux and Windows commands, observed demo output, a concise
-  three-project chooser, and draft 0.1.0 release notes.
+  three-project chooser, and final 0.1.0 release notes.
+- A release-published Trusted Publishing workflow that verifies an exact
+  five-asset GitHub Release, source identity, checksums, SBOM identity,
+  canonical source archives, privacy controls, and offline installation before
+  making only the wheel and canonical sdist available to the PyPI publisher.
 
 ### Security
 
@@ -47,3 +51,10 @@ recorded until the final tag and artifacts are approved.
   and truncated instead of overstating scan coverage.
 - Release builds remove local account metadata from source archives and use a
   public fixed timestamp for wheel members.
+- The verification job has no OIDC permission. The environment-gated publish
+  job grants only `id-token: write`, defines no checkout or repository-authored
+  `run` step, and contains only the pinned artifact-download and PyPA publisher
+  actions for the two previously verified Python distributions.
+- Release-asset downloads accept only the repository's GitHub API URLs and one
+  unauthenticated redirect to a `githubusercontent.com` subdomain; any further
+  redirect fails closed, and the repository token never crosses that boundary.
