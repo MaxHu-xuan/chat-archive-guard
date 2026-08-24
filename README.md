@@ -7,13 +7,22 @@
 
 ## 中文说明
 
-ChatArchiveGuard（聊天归档守护）是一款在本地运行的聊天归档检查工具。个人或团队可以在
-保存、迁移、共享或继续处理聊天导出文件之前，用它检查常见隐私风险、文件格式和 SQLite
-数据库完整性。
+准备保存、迁移、共享或分析聊天导出时，可以先让 ChatArchiveGuard（聊天归档守护）在
+自己的电脑上做一次只读检查：
 
-工具只读扫描用户指定的文件或目录。默认报告只包含相对文件路径、固定检查类别和数量，
-不会输出命中的聊天正文、JSON 值、SQL 值、异常原文或绝对路径。扫描器不包含网络客户端、
-遥测或自动更新功能。
+- 找出疑似密钥、访问凭证和个人信息格式；
+- 发现损坏的 UTF-8、JSON 或 JSONL；
+- 检查 SQLite 是否能安全读取、结构是否通过快检，并扫描可读文本；
+- 用隐私安全摘要说明发现了什么、扫了多少、是否留下盲区。
+
+扫描器只读取你指定的文件或目录，不修改原文件，也不上传数据。使用 `--summary-only` 时，
+报告只保留真实状态、数量和类别，不包含文件名或命中值。默认报告仍会显示相对文件名，方便
+本地定位问题。运行时没有网络客户端、遥测或自动更新功能。
+
+它是一道面向交付或迁移前检查的审计门禁，不是聊天归档阅读器、导入器、搜索器，也不能
+证明消息业务完整或来源真实。
+
+[先看一分钟合成演示](#可重复合成演示)，或[比较三个相关工具](#三个项目怎么选)。
 
 ### 用户价值
 
@@ -25,6 +34,16 @@ ChatArchiveGuard（聊天归档守护）是一款在本地运行的聊天归档�
 
 这里的聊天归档完整性指文件格式、SQLite 结构和本次扫描覆盖状态。它不等于消息完整性，
 也不能证明归档没有丢消息、来源真实或文件从未被篡改。
+
+### 三个项目怎么选
+
+| 你的问题 | 选择 |
+| --- | --- |
+| 分享或迁移聊天导出前，本地检查疑似秘密、个人信息形态、格式、SQLite 与扫描盲区 | ChatArchiveGuard（聊天归档守护），当前项目 |
+| 确认最终 PPTX 及随附验收证据仍匹配结构检查后生成的 HMAC 签名收据 | [ArtifactProof（PPTX 交付物验真）](https://github.com/MaxHu-xuan/artifactproof) |
+| 重启后核对卡住任务、超时与待投递状态，不把未知结果猜成成功 | [TaskStateGuard（任务状态守护）](https://github.com/MaxHu-xuan/task-state-guard) |
+
+三个工具解决的是不同问题，可以单独使用；ChatArchiveGuard 不负责 PPTX 验真或任务状态修复。
 
 ### 适用场景
 
@@ -69,22 +88,30 @@ ChatArchiveGuard 会按文件类型执行不同检查：
 需要 Python 3.11 或更高版本。当前版本尚未发布到包索引，请从已经审核的源码或 wheel
 安装。
 
-1. 从源码目录安装：
+macOS 或 Linux 从源码目录安装：
 
-   ```console
-   python -m pip install .
-   ```
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install .
+```
 
-2. 扫描一个文件或目录：
+```console
+chat-archive-guard /path/to/archive
+chat-archive-guard /path/to/archive --json --summary-only
+```
 
-   ```console
-   chat-archive-guard /path/to/archive
-   chat-archive-guard /path/to/archive --json
-   chat-archive-guard /path/to/archive --json --summary-only
-   ```
+Windows PowerShell 使用 Python Launcher 和不同的路径写法：
 
-3. 同时查看退出码和 `ok`、`complete`、`truncated`。只有没有发现项、扫描完整且未截断时，
-   `ok` 才会是 `true`。
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install .
+.\.venv\Scripts\python.exe -m chat_archive_guard C:\path\to\archive
+.\.venv\Scripts\python.exe -m chat_archive_guard C:\path\to\archive --json --summary-only
+```
+
+同时查看退出码和 `ok`、`complete`、`truncated`。只有没有发现项、扫描完整且未截断时，
+`ok` 才会是 `true`。
 
 若已经拿到审核过的 wheel，可以避免索引访问和依赖解析：
 
@@ -92,18 +119,74 @@ ChatArchiveGuard 会按文件类型执行不同检查：
 python -m pip install --no-index --no-deps /path/to/chat_archive_guard-0.1.0-py3-none-any.whl
 ```
 
+Windows PowerShell 的离线 wheel 安装命令为：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --no-index --no-deps C:\path\to\chat_archive_guard-0.1.0-py3-none-any.whl
+```
+
 未安装时，macOS 和 Linux 可以从源码目录运行：
 
 ```console
-PYTHONPATH=src python -m chat_archive_guard /path/to/archive --json
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m chat_archive_guard /path/to/archive --json
 ```
 
 Windows PowerShell 使用不同的环境变量语法：
 
 ```powershell
+$env:PYTHONDONTWRITEBYTECODE = "1"
 $env:PYTHONPATH = "src"
-python -m chat_archive_guard C:\path\to\archive --json
+py -3 -m chat_archive_guard C:\path\to\archive --json
 ```
+
+### 可重复合成演示
+
+仓库附带的生成器只创建两份固定的虚构数据：一份 JSONL 和一份 SQLite。它不会读取现有
+文件，也不会覆盖已有目录。演示中的测试标记都明确写着永不有效，只用于证明检查器确实能
+发现问题，不是可用凭据，也不来自任何真实对话。
+
+macOS 或 Linux（在仓库根目录执行）：
+
+```console
+demo_parent="$(mktemp -d)"
+demo_parent="$(cd "$demo_parent" && pwd -P)"
+demo_dir="$demo_parent/chat-archive-guard-demo"
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/generate_demo.py "$demo_dir"
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m chat_archive_guard "$demo_dir" --summary-only
+```
+
+实测输出如下：
+
+```text
+synthetic demo: PASS files=2
+FAIL files_seen=2 files_scanned=2 finding_count=3 complete=true truncated=false details_omitted=true findings_omitted=true
+category=format.invalid_jsonl count=1
+category=secret.assignment count=1
+category=secret.provider_key count=1
+```
+
+Windows PowerShell（在仓库根目录执行）：
+
+```powershell
+$demoDir = Join-Path ([System.IO.Path]::GetTempPath()) ("chat-archive-guard-demo-" + [guid]::NewGuid())
+$env:PYTHONDONTWRITEBYTECODE = "1"
+$env:PYTHONPATH = "src"
+py -3 scripts/generate_demo.py $demoDir
+py -3 -m chat_archive_guard $demoDir --summary-only
+```
+
+Windows 的文本检查结果相同，但标准 Python 会按安全边界拒绝直接检查 SQLite，因此输出为：
+
+```text
+synthetic demo: PASS files=2
+FAIL files_seen=2 files_scanned=1 finding_count=3 complete=false truncated=true details_omitted=true findings_omitted=true
+category=format.invalid_jsonl count=1
+category=secret.assignment count=1
+category=sqlite.sidecar_unsafe count=1
+```
+
+两组扫描命令的退出码都会按设计返回 `1`，因为演示数据故意包含三个发现项。这表示门禁
+发现了问题，不表示生成器或扫描器运行失败。演示结束后可以删除刚创建的唯一临时目录。
 
 ### 看懂结果
 
@@ -248,14 +331,26 @@ SQLite 处理。
 
 ## English overview
 
-ChatArchiveGuard is a local chat archive checker for individuals and teams. Run
-it before storing, migrating, sharing, or further processing exported chats to
-inspect common privacy risks, file formats, and SQLite database integrity.
+Before you store, migrate, share, or analyze a chat export, run ChatArchiveGuard
+locally to:
 
-The scanner reads only the file or directory you choose. Default reports contain
-relative paths, fixed categories, and counts. They never contain matched chat
-text, JSON values, SQL values, raw exceptions, or absolute source paths. The
-runtime has no network client, telemetry, or automatic update check.
+- flag common secret, credential, and personal-data patterns;
+- find malformed UTF-8, JSON, or JSONL;
+- check whether SQLite can be read safely, passes its integrity check, and
+  contains readable text worth reviewing; and
+- produce a privacy-safer summary of findings, coverage, and blind spots.
+
+The scanner reads only the file or directory you choose. It does not modify the
+source or upload data. With `--summary-only`, the report keeps real status,
+counts, and categories while omitting filenames and matched values. Default
+reports retain relative filenames for local troubleshooting. The runtime has no
+network client, telemetry, or automatic update check.
+
+It is a pre-delivery or pre-migration audit gate, not a chat archive reader,
+importer, search tool, or proof of message completeness or source authenticity.
+
+[Try the one-minute synthetic demo](#reproducible-synthetic-demo), or
+[compare the three related tools](#which-project-should-i-use).
 
 ### User value
 
@@ -271,6 +366,17 @@ One scan answers three practical questions:
 Chat archive integrity here means format integrity, SQLite structural integrity,
 and scan coverage. It does not mean message completeness, source authenticity,
 or proof that a file was never altered.
+
+### Which project should I use?
+
+| Your question | Choose |
+| --- | --- |
+| Before sharing or migrating a chat export, locally audit potential secrets, personal-data patterns, format or SQLite issues, and scan gaps | ChatArchiveGuard, this project |
+| Verify that a final PPTX and its supplied QA evidence still match the HMAC-signed receipt created after structural checks | [ArtifactProof](https://github.com/MaxHu-xuan/artifactproof) |
+| After a restart, reconcile stuck tasks, timeouts, and pending delivery without guessing success | [TaskStateGuard](https://github.com/MaxHu-xuan/task-state-guard) |
+
+Each tool addresses a separate problem and can be used independently.
+ChatArchiveGuard does not validate PPTX artifacts or repair task state.
 
 ### Use cases
 
@@ -330,23 +436,31 @@ authorized to inspect before sharing an aggregate report.
 Python 3.11 or newer is required. The project has not yet been published to a
 package index, so install from a reviewed checkout or wheel.
 
-1. Install from the source directory:
+On macOS or Linux, install from the source directory:
 
-   ```console
-   python -m pip install .
-   ```
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install .
+```
 
-2. Scan a file or directory:
+```console
+chat-archive-guard /path/to/archive
+chat-archive-guard /path/to/archive --json --summary-only
+```
 
-   ```console
-   chat-archive-guard /path/to/archive
-   chat-archive-guard /path/to/archive --json
-   chat-archive-guard /path/to/archive --json --summary-only
-   ```
+Windows PowerShell uses Python Launcher and Windows path syntax:
 
-3. Read the exit code together with `ok`, `complete`, and `truncated`. `ok` is
-   `true` only when there are no findings and the eligible scan completed
-   without truncation.
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install .
+.\.venv\Scripts\python.exe -m chat_archive_guard C:\path\to\archive
+.\.venv\Scripts\python.exe -m chat_archive_guard C:\path\to\archive --json --summary-only
+```
+
+Read the exit code together with `ok`, `complete`, and `truncated`. `ok` is
+`true` only when there are no findings and the eligible scan completed without
+truncation.
 
 With a reviewed wheel, installation can avoid index access and dependency
 resolution:
@@ -355,18 +469,78 @@ resolution:
 python -m pip install --no-index --no-deps /path/to/chat_archive_guard-0.1.0-py3-none-any.whl
 ```
 
+On Windows PowerShell, install a reviewed wheel offline with:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --no-index --no-deps C:\path\to\chat_archive_guard-0.1.0-py3-none-any.whl
+```
+
 Without installation, macOS and Linux can run from the checkout:
 
 ```console
-PYTHONPATH=src python -m chat_archive_guard /path/to/archive --json
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m chat_archive_guard /path/to/archive --json
 ```
 
 Windows PowerShell uses a different environment-variable syntax:
 
 ```powershell
+$env:PYTHONDONTWRITEBYTECODE = "1"
 $env:PYTHONPATH = "src"
-python -m chat_archive_guard C:\path\to\archive --json
+py -3 -m chat_archive_guard C:\path\to\archive --json
 ```
+
+### Reproducible synthetic demo
+
+The bundled generator creates exactly two fixed, fictional files: one JSONL
+file and one SQLite database. It does not read existing files or overwrite an
+existing directory. Every test marker is visibly marked as invalid and exists only
+to prove that findings work; none is a usable credential or real conversation.
+
+On macOS or Linux, run from the repository root:
+
+```console
+demo_parent="$(mktemp -d)"
+demo_parent="$(cd "$demo_parent" && pwd -P)"
+demo_dir="$demo_parent/chat-archive-guard-demo"
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/generate_demo.py "$demo_dir"
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m chat_archive_guard "$demo_dir" --summary-only
+```
+
+Observed output:
+
+```text
+synthetic demo: PASS files=2
+FAIL files_seen=2 files_scanned=2 finding_count=3 complete=true truncated=false details_omitted=true findings_omitted=true
+category=format.invalid_jsonl count=1
+category=secret.assignment count=1
+category=secret.provider_key count=1
+```
+
+On Windows PowerShell, run from the repository root:
+
+```powershell
+$demoDir = Join-Path ([System.IO.Path]::GetTempPath()) ("chat-archive-guard-demo-" + [guid]::NewGuid())
+$env:PYTHONDONTWRITEBYTECODE = "1"
+$env:PYTHONPATH = "src"
+py -3 scripts/generate_demo.py $demoDir
+py -3 -m chat_archive_guard $demoDir --summary-only
+```
+
+Text scanning produces the same findings. Standard Python on Windows safely
+refuses direct SQLite inspection, so the output is:
+
+```text
+synthetic demo: PASS files=2
+FAIL files_seen=2 files_scanned=1 finding_count=3 complete=false truncated=true details_omitted=true findings_omitted=true
+category=format.invalid_jsonl count=1
+category=secret.assignment count=1
+category=sqlite.sidecar_unsafe count=1
+```
+
+Both scan commands intentionally return exit code `1` because the demo contains
+three findings. That means the gate detected the canaries; it does not mean that
+generation or scanning crashed. Delete only the unique temporary directory you
+created when the demo is complete.
 
 ### Read the result
 
@@ -539,7 +713,8 @@ ChatArchiveGuard is licensed under the Apache License, Version 2.0. See
 Use synthetic data for contributions. Help and policies are in
 [`SUPPORT.md`](SUPPORT.md), [`SECURITY.md`](SECURITY.md),
 [`CONTRIBUTING.md`](CONTRIBUTING.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md),
-[`CHANGELOG.md`](CHANGELOG.md), and [`RELEASING.md`](RELEASING.md).
+[`CHANGELOG.md`](CHANGELOG.md), [`RELEASE_NOTES.md`](RELEASE_NOTES.md), and
+[`RELEASING.md`](RELEASING.md).
 
 Development checks and release procedures stay in the linked contributor and
 maintainer documents instead of this user guide.

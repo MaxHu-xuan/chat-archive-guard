@@ -15,7 +15,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from scripts import privacy_audit
+from scripts import generate_demo, privacy_audit
 from chat_archive_guard.cli import main as cli_main
 from chat_archive_guard.detectors import detect_text
 from chat_archive_guard.scanner import (
@@ -1316,6 +1316,210 @@ class PrivacyAuditTests(unittest.TestCase):
                 self.assertNotIn(marker, stdout.getvalue())
                 self.assertNotIn(marker, stderr.getvalue())
                 self.assertEqual(stderr.getvalue(), "")
+
+
+class SyntheticDemoTests(unittest.TestCase):
+    def _logical_rows(self, path: Path):
+        connection = sqlite3.connect(path)
+        try:
+            return connection.execute(
+                "SELECT id, created_at, body FROM messages ORDER BY id"
+            ).fetchall()
+        finally:
+            connection.close()
+
+    def test_demo_is_repeatable_and_scans_without_exposing_canaries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory).resolve(strict=True)
+            first_jsonl, first_sqlite = generate_demo.generate_demo(parent / "first")
+            second_jsonl, second_sqlite = generate_demo.generate_demo(parent / "second")
+
+            expected_names = [generate_demo.SQLITE_NAME, generate_demo.JSONL_NAME]
+            self.assertEqual(
+                sorted(path.name for path in first_jsonl.parent.iterdir()),
+                expected_names,
+            )
+            self.assertEqual(
+                sorted(path.name for path in second_jsonl.parent.iterdir()),
+                expected_names,
+            )
+            self.assertEqual(first_jsonl.read_bytes(), second_jsonl.read_bytes())
+            self.assertEqual(
+                self._logical_rows(first_sqlite), self._logical_rows(second_sqlite)
+            )
+
+            first_report = scan_tree(ScanConfig(root=first_jsonl.parent))
+            second_report = scan_tree(ScanConfig(root=second_jsonl.parent))
+            self.assertEqual(
+                first_report.to_summary_dict(), second_report.to_summary_dict()
+            )
+            self.assertFalse(first_report.ok)
+            self.assertEqual(first_report.files_seen, 2)
+            if SECURE_SQLITE_SNAPSHOTS:
+                expected_categories = {
+                    "format.invalid_jsonl": 1,
+                    "secret.assignment": 1,
+                    "secret.provider_key": 1,
+                }
+                self.assertEqual(first_report.files_scanned, 2)
+                self.assertTrue(first_report.complete)
+                self.assertFalse(first_report.truncated)
+            else:
+                expected_categories = {
+                    "format.invalid_jsonl": 1,
+                    "secret.assignment": 1,
+                    "sqlite.sidecar_unsafe": 1,
+                }
+                self.assertEqual(first_report.files_scanned, 1)
+                self.assertFalse(first_report.complete)
+                self.assertTrue(first_report.truncated)
+            self.assertEqual(first_report.category_counts(), expected_categories)
+
+            encoded = json.dumps(
+                first_report.to_summary_dict(), sort_keys=True, separators=(",", ":")
+            )
+            self.assertNotIn(generate_demo._assignment_canary(), encoded)
+            self.assertNotIn(generate_demo._provider_canary(), encoded)
+
+    def test_demo_refuses_to_overwrite_an_existing_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory).resolve(strict=True) / "existing"
+            output.mkdir()
+            sentinel = output / "sentinel.txt"
+            sentinel.write_text("preserve", encoding="utf-8")
+
+            with self.assertRaises(FileExistsError):
+                generate_demo.generate_demo(output)
+
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "preserve")
+            self.assertEqual([path.name for path in output.iterdir()], [sentinel.name])
+
+    def test_demo_preserves_sqlite_created_during_generation_race(self) -> None:
+        marker = "synthetic-race-marker-must-remain"
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory).resolve(strict=True)
+            seed = parent / "seed.sqlite"
+            connection = sqlite3.connect(seed)
+            try:
+                connection.execute("CREATE TABLE evidence (marker TEXT NOT NULL)")
+                connection.execute("INSERT INTO evidence (marker) VALUES (?)", (marker,))
+                connection.commit()
+            finally:
+                connection.close()
+            seed_bytes = seed.read_bytes()
+
+            output = parent / "demo"
+            final_path = output / generate_demo.SQLITE_NAME
+            original_write_sqlite = generate_demo._write_sqlite
+            original_connect = sqlite3.connect
+            original_os_open = os.open
+            connected_paths = []
+            final_open_flags = []
+
+            def observed_connect(database, *args, **kwargs):
+                connected_paths.append(Path(os.fspath(database)))
+                return original_connect(database, *args, **kwargs)
+
+            def observed_open(raw_path, flags, *args, **kwargs):
+                if isinstance(raw_path, (str, Path)) and Path(raw_path) == final_path:
+                    final_open_flags.append(flags)
+                return original_os_open(raw_path, flags, *args, **kwargs)
+
+            def inject_existing_database(path: Path) -> None:
+                self.assertEqual(path, final_path)
+                path.write_bytes(seed_bytes)
+                original_write_sqlite(path)
+
+            with mock.patch.object(
+                generate_demo,
+                "_write_sqlite",
+                side_effect=inject_existing_database,
+            ), mock.patch.object(
+                generate_demo.sqlite3,
+                "connect",
+                side_effect=observed_connect,
+            ), mock.patch.object(
+                generate_demo.os,
+                "open",
+                side_effect=observed_open,
+            ):
+                with self.assertRaises(FileExistsError):
+                    generate_demo.generate_demo(output)
+
+            self.assertEqual(final_path.read_bytes(), seed_bytes)
+            self.assertNotIn(final_path, connected_paths)
+            self.assertEqual(len(final_open_flags), 1)
+            final_flags = final_open_flags[0]
+            self.assertEqual(final_flags & os.O_ACCMODE, os.O_WRONLY)
+            self.assertTrue(final_flags & os.O_CREAT)
+            self.assertTrue(final_flags & os.O_EXCL)
+
+            connection = sqlite3.connect(
+                f"file:{final_path.as_posix()}?mode=ro", uri=True
+            )
+            try:
+                observed_marker = connection.execute(
+                    "SELECT marker FROM evidence"
+                ).fetchone()[0]
+            finally:
+                connection.close()
+            self.assertEqual(observed_marker, marker)
+
+    def test_demo_windows_sqlite_refusal_matches_documented_summary(self) -> None:
+        from chat_archive_guard import scanner
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve(strict=True) / "demo"
+            generate_demo.generate_demo(root)
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with mock.patch.object(scanner.os, "O_NOFOLLOW", 0, create=True):
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(
+                    stderr
+                ):
+                    status = cli_main([str(root), "--summary-only"])
+
+            expected = (
+                "FAIL files_seen=2 files_scanned=1 finding_count=3 "
+                "complete=false truncated=true details_omitted=true "
+                "findings_omitted=true\n"
+                "category=format.invalid_jsonl count=1\n"
+                "category=secret.assignment count=1\n"
+                "category=sqlite.sidecar_unsafe count=1\n"
+            )
+            self.assertEqual(status, 1)
+            self.assertEqual(stdout.getvalue(), expected)
+            self.assertEqual(stderr.getvalue(), "")
+            self.assertNotIn(generate_demo._assignment_canary(), stdout.getvalue())
+            self.assertNotIn(generate_demo._provider_canary(), stdout.getvalue())
+
+    def test_demo_cli_is_value_free_and_has_stable_exit_codes(self) -> None:
+        marker = synthetic_provider_key()
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory).resolve(strict=True)
+            cases = (
+                ([str(parent / "demo")], 0, "synthetic demo: PASS files=2"),
+                ([str(parent / "demo")], 1, "reason=generation_error"),
+                (["--unknown", marker], 2, "reason=invalid_arguments"),
+            )
+            for arguments, expected_status, expected_text in cases:
+                with self.subTest(expected_status=expected_status):
+                    stdout = io.StringIO()
+                    stderr = io.StringIO()
+                    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(
+                        stderr
+                    ):
+                        status = generate_demo.main(arguments)
+                    self.assertEqual(status, expected_status)
+                    self.assertIn(expected_text, stdout.getvalue())
+                    self.assertNotIn(marker, stdout.getvalue())
+                    self.assertEqual(stderr.getvalue(), "")
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            status = generate_demo.main(["--self-test"])
+        self.assertEqual(status, 0)
+        self.assertEqual(stdout.getvalue(), "synthetic demo self-test: PASS\n")
 
 
 if __name__ == "__main__":

@@ -35,9 +35,12 @@ availability. No response-time or disclosure-date guarantee is made.
 - Keep SQLite WAL and SHM files together with the database so committed WAL
   records remain visible in the private snapshot.
 - Do not add real data to tests, examples, issue reports, or CI artifacts.
-- Run both bundled privacy-audit modes before every release candidate:
-  `PYTHONDONTWRITEBYTECODE=1 python scripts/privacy_audit.py` and
-  `PYTHONDONTWRITEBYTECODE=1 python scripts/privacy_audit.py --self-test`.
+- Run both bundled privacy-audit modes before every release candidate. Use
+  `python3 scripts/privacy_audit.py` and
+  `python3 scripts/privacy_audit.py --self-test` on macOS or Linux; use
+  `py -3 scripts\privacy_audit.py` and
+  `py -3 scripts\privacy_audit.py --self-test` in Windows PowerShell. Set
+  `PYTHONDONTWRITEBYTECODE=1` through shell syntax appropriate to the platform.
 - Run the same checks with `--sdist` against the unpacked source distribution;
   that mode permits and inspects only `src/chat_archive_guard.egg-info`.
 - Review source provenance and Apache-2.0 compatibility before every release.
