@@ -1,6 +1,7 @@
 include README.md
 include LICENSE
 include CHANGELOG.md
+include RELEASE_NOTES.md
 include CODE_OF_CONDUCT.md
 include CONTRIBUTING.md
 include PROVENANCE.md
@@ -9,5 +10,6 @@ include RELEASING.md
 include SUPPORT.md
 include THREAT_MODEL.md
 include scripts/canonicalize_sdist.py
+include scripts/generate_demo.py
 include scripts/privacy_audit.py
 recursive-include .github *

@@ -24,12 +24,13 @@ lines unless you independently choose to do so.
 - Preserve `--summary-only` as an aggregate-only mode: no finding rows or
   relative filenames, with unchanged status, counts, categories, and exit code.
 
-Before submitting a change, run:
+Before submitting a change on macOS or Linux, run:
 
-```console
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src PYTHONWARNINGS=error::ResourceWarning python -X dev -m unittest discover -s tests -v
-PYTHONDONTWRITEBYTECODE=1 python scripts/privacy_audit.py
-PYTHONDONTWRITEBYTECODE=1 python scripts/privacy_audit.py --self-test
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src PYTHONWARNINGS=error::ResourceWarning python3 -X dev -m unittest discover -s tests -v
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/generate_demo.py --self-test
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/privacy_audit.py
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/privacy_audit.py --self-test
 ```
 
 Hosted CI runs Linux across Python 3.11-3.14 plus Python 3.11 and 3.14 boundary
@@ -39,9 +40,10 @@ jobs on macOS and Windows. In PowerShell, set `PYTHONDONTWRITEBYTECODE` and
 ```powershell
 $env:PYTHONDONTWRITEBYTECODE = "1"
 $env:PYTHONPATH = "src"
-python -X dev -W error::ResourceWarning -m unittest discover -s tests -v
-python scripts/privacy_audit.py
-python scripts/privacy_audit.py --self-test
+py -3 -X dev -W error::ResourceWarning -m unittest discover -s tests -v
+py -3 scripts\generate_demo.py --self-test
+py -3 scripts\privacy_audit.py
+py -3 scripts\privacy_audit.py --self-test
 ```
 
 ## Change expectations

@@ -20,6 +20,11 @@ from typing import Counter, Dict, Iterator, Optional, Sequence, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_LICENSE_SHA256 = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+EXPECTED_PROJECT_DESCRIPTION = (
+    "Scan chat exports locally without modifying them, and flag potential "
+    "secrets, personal-data patterns, JSON/JSONL errors, SQLite integrity "
+    "problems, and scan gaps."
+)
 MAX_FILE_BYTES = 1_048_576
 SDIST_EGG_INFO = "src/chat_archive_guard.egg-info"
 SKIP_DIRS = frozenset((".git",))
@@ -105,12 +110,14 @@ REQUIRED_FILES = (
     "MANIFEST.in",
     "PROVENANCE.md",
     "README.md",
+    "RELEASE_NOTES.md",
     "RELEASING.md",
     "SECURITY.md",
     "SUPPORT.md",
     "THREAT_MODEL.md",
     "pyproject.toml",
     "scripts/canonicalize_sdist.py",
+    "scripts/generate_demo.py",
     "scripts/privacy_audit.py",
     "src/chat_archive_guard/__init__.py",
     "src/chat_archive_guard/__main__.py",
@@ -292,7 +299,10 @@ def _metadata_checks(root: Path, findings: Counter[Tuple[str, str]]) -> None:
         (r'(?m)^\s*"chat-export",\s*$', "metadata.chat_export_keyword_missing"),
         (r'(?m)^\s*"log-scanning",\s*$', "metadata.log_scanning_keyword_missing"),
         (r'(?m)^\s*"offline-scanner",\s*$', "metadata.offline_scanner_keyword_missing"),
-        (r'(?m)^\s*"pii-detection",\s*$', "metadata.pii_detection_keyword_missing"),
+        (
+            r'(?m)^\s*"personal-data-scanning",\s*$',
+            "metadata.personal_data_scanning_keyword_missing",
+        ),
         (r'(?m)^\s*"privacy",\s*$', "metadata.privacy_keyword_missing"),
         (r'(?m)^\s*"privacy-audit",\s*$', "metadata.privacy_audit_keyword_missing"),
         (r'(?m)^\s*"read-only",\s*$', "metadata.read_only_keyword_missing"),
@@ -312,6 +322,11 @@ def _metadata_checks(root: Path, findings: Counter[Tuple[str, str]]) -> None:
     for pattern, category in metadata_checks:
         if not re.search(pattern, metadata):
             findings[("pyproject.toml", category)] += 1
+    expected_description_line = (
+        'description = "' + EXPECTED_PROJECT_DESCRIPTION + '"'
+    )
+    if metadata.splitlines().count(expected_description_line) != 1:
+        findings[("pyproject.toml", "metadata.project_description_mismatch")] += 1
 
     try:
         readme = (root / "README.md").read_text(encoding="utf-8")
@@ -328,12 +343,16 @@ def _metadata_checks(root: Path, findings: Counter[Tuple[str, str]]) -> None:
         ("### 完整性检查", "metadata.chinese_integrity_checks_missing"),
         ("### 隐私与安全", "metadata.chinese_privacy_section_missing"),
         ("### 快速开始", "metadata.chinese_quick_start_missing"),
+        ("### 三个项目怎么选", "metadata.chinese_project_chooser_missing"),
+        ("### 可重复合成演示", "metadata.chinese_demo_missing"),
         ("### 使用局限", "metadata.chinese_limitations_missing"),
         ("### User value", "metadata.english_value_missing"),
         ("### Use cases", "metadata.english_use_cases_missing"),
         ("### Integrity checks", "metadata.english_integrity_checks_missing"),
         ("### Privacy and security", "metadata.english_privacy_section_missing"),
         ("### Quick start", "metadata.english_quick_start_missing"),
+        ("### Which project should I use?", "metadata.english_project_chooser_missing"),
+        ("### Reproducible synthetic demo", "metadata.english_demo_missing"),
         ("### Limitations", "metadata.english_limitations_missing"),
         ("## 中文技术参考", "metadata.chinese_technical_reference_missing"),
         ("## English technical reference", "metadata.english_technical_reference_missing"),
@@ -370,10 +389,12 @@ def _metadata_checks(root: Path, findings: Counter[Tuple[str, str]]) -> None:
         "include CHANGELOG.md",
         "include CODE_OF_CONDUCT.md",
         "include LICENSE",
+        "include RELEASE_NOTES.md",
         "include RELEASING.md",
         "include SECURITY.md",
         "include SUPPORT.md",
         "include scripts/canonicalize_sdist.py",
+        "include scripts/generate_demo.py",
         "include scripts/privacy_audit.py",
         "recursive-include .github *",
     ):
@@ -542,10 +563,12 @@ def _is_own_unpacked_sdist(root: Path) -> bool:
         ".github/PULL_REQUEST_TEMPLATE.md",
         "CHANGELOG.md",
         "CODE_OF_CONDUCT.md",
+        "RELEASE_NOTES.md",
         "RELEASING.md",
         "SECURITY.md",
         "SUPPORT.md",
         "pyproject.toml",
+        "scripts/generate_demo.py",
         "scripts/privacy_audit.py",
         "src/chat_archive_guard.egg-info/PKG-INFO",
         "src/chat_archive_guard.egg-info/SOURCES.txt",
@@ -562,6 +585,29 @@ def self_test(project_root: Path = PROJECT_ROOT, sdist: bool = False) -> bool:
     effective_sdist = sdist or _is_own_unpacked_sdist(project_root)
     if not bool(audit(project_root, sdist=effective_sdist)["ok"]):
         return False
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        try:
+            license_bytes = (PROJECT_ROOT / "LICENSE").read_bytes()
+            metadata = (PROJECT_ROOT / "pyproject.toml").read_text(
+                encoding="utf-8"
+            )
+        except (OSError, UnicodeError):
+            return False
+        (root / "LICENSE").write_bytes(license_bytes)
+        (root / "pyproject.toml").write_text(
+            metadata.replace(
+                EXPECTED_PROJECT_DESCRIPTION,
+                "synthetic mismatched project description",
+            ),
+            encoding="utf-8",
+        )
+        metadata_findings: Counter[Tuple[str, str]] = collections.Counter()
+        _metadata_checks(root, metadata_findings)
+        if metadata_findings[
+            ("pyproject.toml", "metadata.project_description_mismatch")
+        ] != 1:
+            return False
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         values = (

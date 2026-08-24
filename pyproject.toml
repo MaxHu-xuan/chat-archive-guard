@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chat-archive-guard"
 version = "0.1.0"
-description = "Scan chat exports locally for secrets, PII patterns, format errors, and SQLite integrity issues"
+description = "Scan chat exports locally without modifying them, and flag potential secrets, personal-data patterns, JSON/JSONL errors, SQLite integrity problems, and scan gaps."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -19,7 +19,7 @@ keywords = [
   "jsonl",
   "log-scanning",
   "offline-scanner",
-  "pii-detection",
+  "personal-data-scanning",
   "privacy",
   "privacy-audit",
   "read-only",
@@ -49,6 +49,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/MaxHu-xuan/chat-archive-guard"
 Repository = "https://github.com/MaxHu-xuan/chat-archive-guard"
+Documentation = "https://github.com/MaxHu-xuan/chat-archive-guard#readme"
 Issues = "https://github.com/MaxHu-xuan/chat-archive-guard/issues"
 Changelog = "https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/CHANGELOG.md"
 Security = "https://github.com/MaxHu-xuan/chat-archive-guard/security/policy"

@@ -57,11 +57,16 @@ jobs:
         run: python scripts/privacy_audit.py --self-test
       - name: Test privacy-safe source archive canonicalizer
         run: python scripts/canonicalize_sdist.py --self-test
+      - name: Test deterministic synthetic demo generator
+        run: python scripts/generate_demo.py --self-test
       - name: Run synthetic unit tests
         run: python -X dev -W error::ResourceWarning -m unittest discover -s tests -q
+      - name: Install pinned wheel-build tooling
+        if: matrix.python-version == '3.14'
+        run: python -m pip install --disable-pip-version-check "setuptools==77.0.3" "wheel==0.46.2"
       - name: Build wheel for cross-platform install smoke
         if: matrix.python-version == '3.14'
-        run: python -m pip wheel --disable-pip-version-check --no-deps --wheel-dir wheelhouse .
+        run: python -m pip wheel --disable-pip-version-check --no-build-isolation --no-deps --wheel-dir wheelhouse .
       - name: Install wheel without an index
         if: matrix.python-version == '3.14'
         run: python -m pip install --disable-pip-version-check --no-index --no-deps --force-reinstall --find-links wheelhouse "chat-archive-guard==0.1.0"
@@ -91,10 +96,10 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
-      - name: Install pinned build frontend
-        run: python -m pip install --disable-pip-version-check "build==1.3.0"
+      - name: Install pinned build toolchain
+        run: python -m pip install --disable-pip-version-check "build==1.3.0" "setuptools==77.0.3" "wheel==0.46.2"
       - name: Build source and wheel distributions
-        run: python -m build
+        run: python -m build --no-isolation
       - name: Canonicalize the source distribution
         run: python scripts/canonicalize_sdist.py --dist-dir dist --output-dir canonical-dist --source-date-epoch 946684800
       - name: Audit unpacked source distribution

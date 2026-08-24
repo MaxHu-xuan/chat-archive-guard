@@ -5,6 +5,9 @@ The project follows Semantic Versioning after its first public release.
 
 ## Unreleased
 
+Release status: this remains an unreleased 0.1.0 candidate. No release date is
+recorded until the final tag and artifacts are approved.
+
 ### Added
 
 - Initial public-preview documentation and package metadata.
@@ -24,9 +27,16 @@ The project follows Semantic Versioning after its first public release.
   relative filenames.
 - A cross-platform canonical source-archive builder with portable path checks,
   fixed metadata, content verification, and reproducibility self-tests.
+- A deterministic runtime-only JSONL and SQLite demo generator with visibly
+  invalid canaries, stable aggregate findings, and no committed data fixtures.
+- Separate macOS/Linux and Windows commands, observed demo output, a concise
+  three-project chooser, and draft 0.1.0 release notes.
 
 ### Security
 
+- Build the synthetic SQLite demo in a private temporary file, close it, then
+  publish with exclusive final-file creation so a racing existing database is
+  never opened, read, or modified.
 - Preserve source-swap detection on Windows without comparing incompatible
   path-stat and open-handle timestamp fields.
 - SQLite inspection requires an atomic no-follow open and otherwise fails
