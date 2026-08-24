@@ -1450,7 +1450,8 @@ class SyntheticDemoTests(unittest.TestCase):
             self.assertNotIn(final_path, connected_paths)
             self.assertEqual(len(final_open_flags), 1)
             final_flags = final_open_flags[0]
-            self.assertEqual(final_flags & os.O_ACCMODE, os.O_WRONLY)
+            access_mode_mask = getattr(os, "O_ACCMODE", os.O_WRONLY | os.O_RDWR)
+            self.assertEqual(final_flags & access_mode_mask, os.O_WRONLY)
             self.assertTrue(final_flags & os.O_CREAT)
             self.assertTrue(final_flags & os.O_EXCL)
 
