@@ -5,12 +5,13 @@ The project follows Semantic Versioning after its first public release.
 
 ## 0.1.0 - 2026-08-25
 
-First public release. The tag, GitHub Release publication, and PyPI environment
-approval remain separate maintainer-controlled operations.
+First public release. Its release-evidence boundary is the exact five uploaded
+GitHub Release assets documented in `RELEASING.md`; GitHub-generated source-code
+downloads are not uploaded assets and are outside that allowlist.
 
 ### Added
 
-- Initial public-preview documentation and package metadata.
+- Initial public documentation and package metadata.
 - Local, values-free diagnostics for supported text, JSON, JSONL, and SQLite
   archives.
 - Explicit Linux, macOS, and Windows behavior and security boundaries.
@@ -31,8 +32,8 @@ approval remain separate maintainer-controlled operations.
   invalid canaries, stable aggregate findings, and no committed data fixtures.
 - Separate macOS/Linux and Windows commands, observed demo output, a concise
   three-project chooser, and final 0.1.0 release notes.
-- A release-published Trusted Publishing workflow that verifies an exact
-  five-asset GitHub Release, source identity, checksums, SBOM identity,
+- A release-published Trusted Publishing workflow that verifies the exact five
+  uploaded GitHub Release assets, source identity, checksums, SBOM identity,
   canonical source archives, privacy controls, and offline installation before
   making only the wheel and canonical sdist available to the PyPI publisher.
 
