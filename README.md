@@ -2,8 +2,12 @@
 
 [![CI](https://github.com/MaxHu-xuan/chat-archive-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/MaxHu-xuan/chat-archive-guard/actions/workflows/ci.yml)
 
-[中文说明](#中文说明) | [English overview](#english-overview) |
-[中文技术参考](#中文技术参考) | [English technical reference](#english-technical-reference)
+中文：[中文说明](#中文说明) | [中文技术参考](#中文技术参考) |
+[中文项目资料](#中文项目资料)
+
+English: [English overview](#english-overview) |
+[English technical reference](#english-technical-reference) |
+[Project information](#project-information)
 
 ## 中文说明
 
@@ -85,15 +89,15 @@ ChatArchiveGuard 会按文件类型执行不同检查：
 
 ### 快速开始
 
-需要 Python 3.11 或更高版本。当前版本尚未发布到包索引，请从已经审核的源码或 wheel
-安装。
+需要 Python 3.11 或更高版本。安装已发布版本时，建议先创建隔离环境，再从 PyPI 安装，
+避免影响系统 Python。
 
-macOS 或 Linux 从源码目录安装：
+macOS 或 Linux：
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install .
+python -m pip install chat-archive-guard
 ```
 
 ```console
@@ -105,7 +109,7 @@ Windows PowerShell 使用 Python Launcher 和不同的路径写法：
 
 ```powershell
 py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install .
+.\.venv\Scripts\python.exe -m pip install chat-archive-guard
 .\.venv\Scripts\python.exe -m chat_archive_guard C:\path\to\archive
 .\.venv\Scripts\python.exe -m chat_archive_guard C:\path\to\archive --json --summary-only
 ```
@@ -113,19 +117,62 @@ py -3 -m venv .venv
 同时查看退出码和 `ok`、`complete`、`truncated`。只有没有发现项、扫描完整且未截断时，
 `ok` 才会是 `true`。
 
-若已经拿到审核过的 wheel，可以避免索引访问和依赖解析：
+如果正在审核尚未发布的候选版本，或希望从源码安装，请先进入你已核对的源码仓库根目录
+（即包含 `pyproject.toml` 的目录）。在已经创建并激活的 macOS 或 Linux 隔离环境中运行：
 
 ```console
-python -m pip install --no-index --no-deps /path/to/chat_archive_guard-0.1.0-py3-none-any.whl
+python -m pip install .
 ```
 
-Windows PowerShell 的离线 wheel 安装命令为：
+Windows PowerShell 使用已经创建的同一个隔离环境：
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install --no-index --no-deps C:\path\to\chat_archive_guard-0.1.0-py3-none-any.whl
+.\.venv\Scripts\python.exe -m pip install .
 ```
 
-未安装时，macOS 和 Linux 可以从源码目录运行：
+如需从 wheel 离线安装，请从同一个
+[GitHub Release 页面](https://github.com/MaxHu-xuan/chat-archive-guard/releases)下载
+`SHA256SUMS` 和 `chat_archive_guard-0.1.0-py3-none-any.whl`，并把两个文件放在同一目录。
+SHA-256 核对只能确认 wheel 与该清单一致，不能替代对发布来源的核对。
+
+macOS 或 Linux 先运行：
+
+```bash
+wheel="chat_archive_guard-0.1.0-py3-none-any.whl"
+if command -v sha256sum >/dev/null 2>&1; then
+  awk -v name="$wheel" '$2 == name { print }' SHA256SUMS | sha256sum -c -
+else
+  awk -v name="$wheel" '$2 == name { print }' SHA256SUMS | shasum -a 256 -c -
+fi
+```
+
+只有在输出 `chat_archive_guard-0.1.0-py3-none-any.whl: OK` 后，才在已经激活的隔离环境中安装：
+
+```console
+python -m pip install --no-index --no-deps ./chat_archive_guard-0.1.0-py3-none-any.whl
+```
+
+Windows PowerShell 先核对同一目录中的文件：
+
+```powershell
+$wheel = "chat_archive_guard-0.1.0-py3-none-any.whl"
+$rows = @(Get-Content .\SHA256SUMS | Where-Object {
+    $_ -match ("^[0-9a-f]{64}  " + [regex]::Escape($wheel) + "$")
+})
+if ($rows.Count -ne 1) { throw "Expected exactly one checksum row" }
+$expected = ($rows[0] -split "  ", 2)[0]
+$actual = (Get-FileHash -Algorithm SHA256 ".\$wheel").Hash.ToLowerInvariant()
+if ($actual -ne $expected) { throw "SHA-256 verification failed" }
+"SHA-256 OK: $wheel"
+```
+
+只有核对成功后才安装：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --no-index --no-deps .\chat_archive_guard-0.1.0-py3-none-any.whl
+```
+
+未安装时，macOS 和 Linux 可以从你已核对的源码仓库根目录运行：
 
 ```console
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m chat_archive_guard /path/to/archive --json
@@ -259,7 +306,8 @@ SQLite 处理。
 #### 会上传聊天数据吗？
 
 不会。安装后的扫描器只读取本地路径，没有网络客户端或遥测。常规安装可能访问包索引；
-需要完全离线时，请使用审核过的 wheel 和前述 `--no-index --no-deps` 命令。
+需要完全离线时，请按前述步骤从同一个 GitHub Release 下载 wheel 和 `SHA256SUMS`，
+核对后再使用 `--no-index --no-deps` 安装。
 
 #### 能检查所有聊天导出吗？
 
@@ -304,7 +352,7 @@ SQLite 处理。
    限制时，结果会明确标为不完整。
 
 扫描器只使用 Python 标准库。完整边界和残余风险见
-[`THREAT_MODEL.md`](THREAT_MODEL.md)。
+[`THREAT_MODEL.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/THREAT_MODEL.md)。
 
 ### 检查类别
 
@@ -328,6 +376,24 @@ SQLite 处理。
 达到文件数、发现数、字节、行数或值大小限制时，结果会出现对应发现项，并设置
 `complete=false`、`truncated=true`。有限扫描不会因为未检查内容暂时没有命中而返回健康
 结果。
+
+## 中文项目资料
+
+ChatArchiveGuard 采用 Apache License 2.0，详见
+[`LICENSE`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/LICENSE) 和
+[`PROVENANCE.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/PROVENANCE.md)。
+
+参与贡献时请只使用合成数据。支持、安全、贡献规范与项目记录见
+[`SUPPORT.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/SUPPORT.md)、
+[`SECURITY.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/SECURITY.md)、
+[`CONTRIBUTING.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/CONTRIBUTING.md)、
+[`CODE_OF_CONDUCT.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/CODE_OF_CONDUCT.md)、
+[`CHANGELOG.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/CHANGELOG.md)、
+[`RELEASE_NOTES.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/RELEASE_NOTES.md) 和
+[`RELEASING.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/RELEASING.md)。
+
+需要帮助、报告安全问题或参与贡献时，请按对应文档操作。版本记录、发布说明和维护者发布
+流程分别列出，方便使用者与贡献者直接找到所需内容。
 
 ## English overview
 
@@ -433,15 +499,15 @@ authorized to inspect before sharing an aggregate report.
 
 ### Quick start
 
-Python 3.11 or newer is required. The project has not yet been published to a
-package index, so install from a reviewed checkout or wheel.
+Python 3.11 or newer is required. For a published release, create an isolated
+environment and install from PyPI so the system Python remains untouched.
 
-On macOS or Linux, install from the source directory:
+On macOS or Linux:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install .
+python -m pip install chat-archive-guard
 ```
 
 ```console
@@ -453,7 +519,7 @@ Windows PowerShell uses Python Launcher and Windows path syntax:
 
 ```powershell
 py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install .
+.\.venv\Scripts\python.exe -m pip install chat-archive-guard
 .\.venv\Scripts\python.exe -m chat_archive_guard C:\path\to\archive
 .\.venv\Scripts\python.exe -m chat_archive_guard C:\path\to\archive --json --summary-only
 ```
@@ -462,20 +528,66 @@ Read the exit code together with `ok`, `complete`, and `truncated`. `ok` is
 `true` only when there are no findings and the eligible scan completed without
 truncation.
 
-With a reviewed wheel, installation can avoid index access and dependency
-resolution:
+When reviewing an unpublished candidate or installing from source, first enter
+the root of a source checkout you have verified: the directory containing
+`pyproject.toml`. In an existing, activated macOS or Linux environment, run:
 
 ```console
-python -m pip install --no-index --no-deps /path/to/chat_archive_guard-0.1.0-py3-none-any.whl
+python -m pip install .
 ```
 
-On Windows PowerShell, install a reviewed wheel offline with:
+In Windows PowerShell, use the same existing isolated environment:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install --no-index --no-deps C:\path\to\chat_archive_guard-0.1.0-py3-none-any.whl
+.\.venv\Scripts\python.exe -m pip install .
 ```
 
-Without installation, macOS and Linux can run from the checkout:
+To install a wheel offline, download `SHA256SUMS` and
+`chat_archive_guard-0.1.0-py3-none-any.whl` from the same
+[GitHub Release page](https://github.com/MaxHu-xuan/chat-archive-guard/releases),
+then place both files in one directory. A SHA-256 match confirms consistency
+with that manifest; it does not replace verification of the release source.
+
+On macOS or Linux, verify the wheel first:
+
+```bash
+wheel="chat_archive_guard-0.1.0-py3-none-any.whl"
+if command -v sha256sum >/dev/null 2>&1; then
+  awk -v name="$wheel" '$2 == name { print }' SHA256SUMS | sha256sum -c -
+else
+  awk -v name="$wheel" '$2 == name { print }' SHA256SUMS | shasum -a 256 -c -
+fi
+```
+
+Only after the command prints `chat_archive_guard-0.1.0-py3-none-any.whl: OK`,
+install into the activated environment:
+
+```console
+python -m pip install --no-index --no-deps ./chat_archive_guard-0.1.0-py3-none-any.whl
+```
+
+In Windows PowerShell, verify the two files in the same directory first:
+
+```powershell
+$wheel = "chat_archive_guard-0.1.0-py3-none-any.whl"
+$rows = @(Get-Content .\SHA256SUMS | Where-Object {
+    $_ -match ("^[0-9a-f]{64}  " + [regex]::Escape($wheel) + "$")
+})
+if ($rows.Count -ne 1) { throw "Expected exactly one checksum row" }
+$expected = ($rows[0] -split "  ", 2)[0]
+$actual = (Get-FileHash -Algorithm SHA256 ".\$wheel").Hash.ToLowerInvariant()
+if ($actual -ne $expected) { throw "SHA-256 verification failed" }
+"SHA-256 OK: $wheel"
+```
+
+Install only after verification succeeds:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --no-index --no-deps .\chat_archive_guard-0.1.0-py3-none-any.whl
+```
+
+Without installation, macOS and Linux can run from the root of a source
+checkout they have verified:
 
 ```console
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m chat_archive_guard /path/to/archive --json
@@ -618,8 +730,10 @@ can produce false positives or false negatives.
 #### Does ChatArchiveGuard upload chat data?
 
 No. The installed scanner reads local paths and contains no network client or
-telemetry. A normal installation may contact a package index. Use a reviewed
-wheel with `--no-index --no-deps` when installation must remain offline.
+telemetry. A normal installation may contact a package index. For a fully
+offline installation, follow the steps above to download the wheel and
+`SHA256SUMS` from the same GitHub Release, verify the wheel, and then use
+`--no-index --no-deps`.
 
 #### Can it scan every chat export?
 
@@ -678,7 +792,8 @@ public workflow artifacts. This project's CI uses only synthetic runtime data.
    explicitly make the report incomplete.
 
 The scanner uses only the Python standard library. See
-[`THREAT_MODEL.md`](THREAT_MODEL.md) for the full boundary and residual risks.
+[`THREAT_MODEL.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/THREAT_MODEL.md)
+for the full boundary and residual risks.
 
 ### Finding categories
 
@@ -708,13 +823,18 @@ because uninspected content has not produced a match.
 ## Project information
 
 ChatArchiveGuard is licensed under the Apache License, Version 2.0. See
-[`LICENSE`](LICENSE) and [`PROVENANCE.md`](PROVENANCE.md).
+[`LICENSE`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/LICENSE) and
+[`PROVENANCE.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/PROVENANCE.md).
 
 Use synthetic data for contributions. Help and policies are in
-[`SUPPORT.md`](SUPPORT.md), [`SECURITY.md`](SECURITY.md),
-[`CONTRIBUTING.md`](CONTRIBUTING.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md),
-[`CHANGELOG.md`](CHANGELOG.md), [`RELEASE_NOTES.md`](RELEASE_NOTES.md), and
-[`RELEASING.md`](RELEASING.md).
+[`SUPPORT.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/SUPPORT.md),
+[`SECURITY.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/SECURITY.md),
+[`CONTRIBUTING.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/CONTRIBUTING.md),
+[`CODE_OF_CONDUCT.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/CODE_OF_CONDUCT.md),
+[`CHANGELOG.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/CHANGELOG.md),
+[`RELEASE_NOTES.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/RELEASE_NOTES.md),
+and [`RELEASING.md`](https://github.com/MaxHu-xuan/chat-archive-guard/blob/main/RELEASING.md).
 
-Development checks and release procedures stay in the linked contributor and
-maintainer documents instead of this user guide.
+Use the linked guides to get help, report a security concern, or contribute.
+Changelog, release notes, and maintainer release steps are kept separate so
+each reader can go straight to the information they need.

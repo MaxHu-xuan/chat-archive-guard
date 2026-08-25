@@ -78,7 +78,7 @@ artifact.
    commit. Exercise the README's deterministic JSONL/SQLite demo and confirm
    exit code 1 is caused only by the three intentional synthetic findings.
 
-## Build the five reviewed GitHub Release assets
+## Build the five reviewed assets for GitHub Release upload
 
 Build from a clean checkout of the final commit. `MANIFEST.in` includes
 `.github`, so any workflow change requires rebuilding and re-auditing the
@@ -119,7 +119,9 @@ member list, and install the wheel offline with `--no-index --no-deps` in a
 fresh environment. Smoke-test both `chat-archive-guard --version` and
 `python -m chat_archive_guard --version` outside the checkout.
 
-Prepare exactly these five GitHub Release assets:
+Prepare exactly these five uploaded GitHub Release assets. GitHub may also show
+automatically generated source-code downloads; those are not uploaded assets and
+are outside this five-uploaded-asset allowlist:
 
 - `SOURCE_COMMIT`: the lowercase 40-character commit ID followed by one
   newline
@@ -131,22 +133,22 @@ Prepare exactly these five GitHub Release assets:
   `canonical-dist`, never the raw archive from `dist`
 
 Keep artifact hashes outside the Markdown release notes: record them only in
-`SHA256SUMS` and the private release audit record. Do not upload archives,
-databases, messages, credentials, personal data, local paths, logs, build
+`SHA256SUMS` and the private release audit record. Do not upload chat archives,
+chat databases, messages, credentials, personal data, local paths, logs, build
 caches, or private test output.
 
 ## Publish and approve
 
 1. Create annotated tag `v0.1.0` at the reviewed commit on `main`.
-2. Create a draft GitHub Release for that exact tag, attach the five assets
-   above, and attach nothing else. Review the release text and asset names,
+2. Create a draft GitHub Release for that exact tag, upload the five assets
+   above, and upload no other assets. Review the release text and asset names,
    sizes, checksums, source commit, SBOM identity, and CI evidence.
 3. Publish the GitHub Release as a stable release, not a prerelease. The
    `release.published` event starts `.github/workflows/publish-pypi.yml`.
 4. Wait for `verify` to finish. It independently enforces tag/version/main
-   ancestry, the exact five-asset allowlist, source identity and hashes, SBOM
-   identity, source privacy and self-tests, canonical sdist identity, unpacked
-   sdist privacy, and offline wheel and CLI behavior.
+   ancestry, the exact five-uploaded-asset allowlist, source identity and hashes,
+   SBOM identity, source privacy and self-tests, canonical sdist identity,
+   unpacked-sdist privacy, and offline wheel and CLI behavior.
 5. Inspect the `verify` result and uploaded workflow artifact. Only after it
    is green should the required reviewer approve deployment to the `pypi`
    environment. PyPI receives only the wheel and canonical sdist.
